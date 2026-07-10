@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <!-- 앱형 UX: 더블탭·핀치 줌 비활성 (버튼 연타 시 확대 방지) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#fafaf7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#171d17" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <!-- 노치·다이나믹 아일랜드 영역까지 앱 배경이 채워지도록 투명 상태바 사용 -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="두그루">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <!-- 홈화면·PWA 아이콘 = 그래픽+텍스트 전체 로고 / 파비콘 = 새싹 그래픽 -->
+  <link rel="apple-touch-icon" href="/icons/icon-180.png">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" type="image/png" href="/favicon.png" sizes="48x48">
+  <title>두그루</title>
+  <style>
+    /* 테마 토큰 — data-theme(설정의 자동/라이트/다크)이 미디어쿼리보다 우선 */
+    :root {
+      color-scheme: light dark;
+      --bg: #fafaf7;
+      --surface: #ffffff;
+      --text: #1f2a1f;
+      --text-sub: #5b6b5b;
+      --green: #3d7a4a;
+      --green-soft: #e6f2e9;
+      --border: #dde5dd;
+      --danger: #c0392b;
+      --warn: #d68910;
+      --ok: #3d7a4a;
+      --logo-filter: none;
+    }
+    :root[data-theme='light'] { color-scheme: light; }
+    :root[data-theme='dark'] {
+      color-scheme: dark;
+      --bg: #171d17;
+      --surface: #1f271f;
+      --text: #e4ebe4;
+      --text-sub: #9cae9c;
+      --green: #6fbf7f;
+      --green-soft: #23331f;
+      --border: #33402f;
+      --danger: #e07060;
+      --warn: #e0a060;
+      --ok: #6fbf7f;
+      --logo-filter: brightness(0) invert(0.85);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme='light']) {
+        color-scheme: dark;
+        --bg: #171d17;
+        --surface: #1f271f;
+        --text: #e4ebe4;
+        --text-sub: #9cae9c;
+        --green: #6fbf7f;
+        --green-soft: #23331f;
+        --border: #33402f;
+        --danger: #e07060;
+        --warn: #e0a060;
+        --ok: #6fbf7f;
+        --logo-filter: brightness(0) invert(0.85);
+      }
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+      /* 브라우저 자체 당겨서-새로고침과 앱 내 새로고침의 중복 방지 */
+      overscroll-behavior-y: contain;
+    }
+  </style>
+</head>
+<body>
+  <app-root></app-root>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

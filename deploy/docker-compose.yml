@@ -1,0 +1,42 @@
+name: dogroo
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - /etc/dogroo/caddy.env          # DOGROO_DOMAIN
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # /deploy/hook → 호스트 웹훅
+    depends_on:
+      - backend
+      - frontend
+
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    env_file:
+      - /etc/dogroo/backend.env
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - /srv/dogroo/data:/data         # SQLite + photos (백업 = 이 디렉토리 복사)
+    expose:
+      - "4746"
+
+  frontend:
+    build: ../frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+
+volumes:
+  caddy-data:
+  caddy-config:

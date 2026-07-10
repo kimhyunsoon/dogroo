@@ -1,0 +1,16 @@
+# 메인 리버스 프록시 — 도메인은 /etc/dogroo/caddy.env의 DOGROO_DOMAIN
+{$DOGROO_DOMAIN} {
+	encode gzip
+
+	handle /deploy/hook {
+		reverse_proxy host.docker.internal:9099
+	}
+
+	handle /api/* {
+		reverse_proxy backend:4746
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+}

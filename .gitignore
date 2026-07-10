@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+*.local
+*.log
+.DS_Store
+data/
+
+# groo 백업 원본 (로컬 보존용 — 필요분은 backend/seed/에 포함됨)
+docs/data/

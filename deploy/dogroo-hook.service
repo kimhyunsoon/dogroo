@@ -1,0 +1,17 @@
+[Unit]
+Description=dogroo deploy webhook receiver
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# DEPLOY_KEY, REPO_DIR (선택: HOOK_PORT, HOOK_HOST, HOOK_LOG)
+EnvironmentFile=/etc/dogroo/deploy.env
+ExecStart=/usr/bin/node /srv/dogroo/app/deploy/hook-server.mjs
+Restart=on-failure
+RestartSec=5
+# docker·git 실행 권한이 있는 사용자로 조정 (docker 그룹 소속)
+User=root
+
+[Install]
+WantedBy=multi-user.target

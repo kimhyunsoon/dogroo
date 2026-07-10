@@ -1,0 +1,46 @@
+import { api } from './api.js';
+
+// VAPID 공개키(base64url) → PushManager가 요구하는 Uint8Array
+function vapidKeyToUint8(key: string): Uint8Array {
+  const padding = '='.repeat((4 - (key.length % 4)) % 4);
+  const base64 = (key + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+// 알림 권한 확인 후 이 기기를 푸시 구독시킨다. 성공 여부 반환
+export async function ensureSubscribed(): Promise<boolean> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return false;
+  }
+  if (Notification.permission === 'denied') return false;
+  const permission =
+    Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+  if (permission !== 'granted') return false;
+  const { key } = await api<{ key: string }>('/api/push/vapid-public-key');
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: vapidKeyToUint8(key),
+  });
+  await api('/api/push/subscriptions', { method: 'POST', body: JSON.stringify(sub.toJSON()) });
+  return true;
+}
+
+// 첫 진입 시 1회: 알림을 허용하면 물주기 알림을 켜고 기본 저녁 6시로 설정
+// (iOS는 사용자 제스처 없이는 권한 요청이 안 되므로, 그 경우 설정의 스위치가 같은 역할)
+export async function setupPushOnce(): Promise<void> {
+  if (localStorage.getItem('push-setup') === '1') return;
+  try {
+    const ok = await ensureSubscribed();
+    localStorage.setItem('push-setup', '1');
+    if (ok) {
+      await api('/api/settings/notifications/watering', {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: true, send_at: '18:00' }),
+      });
+    }
+  } catch {
+    // 미지원·거부는 무시 - 설정 스위치로 언제든 다시 켤 수 있음
+  }
+}
