@@ -5,8 +5,8 @@
 set -euo pipefail
 
 REPO_SSH="git@github.com:kimhyunsoon/dogroo.git"
-APP_DIR="/srv/dogroo/app"
-DATA_DIR="/srv/dogroo/data"
+APP_DIR="/root/workspace/dogroo"
+DATA_DIR="/root/workspace/dogroo-data"
 WEBHOOK_VERSION="2.8.2"
 DEFAULT_DOMAIN="sudosoon.iptime.org"
 

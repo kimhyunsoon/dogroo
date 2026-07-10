@@ -81,14 +81,14 @@ push (main)
              ├─ /deploy/hook  → host-gateway:9099 (webhook, 호스트 systemd)
              └─ /*            → frontend:80    (정적 PWA)
 
-        [backend 컨테이너] ── /srv/dogroo/data ↔ /data 바인드 마운트
+        [backend 컨테이너] ── /root/workspace/dogroo-data ↔ /data 바인드 마운트
                                ├─ dogroo.db      (SQLite: 데이터·세션)
                                ├─ photos/        (사진 원본)
                                ├─ .session-secret
                                └─ .vapid.json    (푸시 키쌍)
 ```
 
-- 데이터는 전부 호스트 `/srv/dogroo/data`에 존재 → **백업 = 이 디렉토리 복사**
+- 데이터는 전부 호스트 `/root/workspace/dogroo-data`에 존재 → **백업 = 이 디렉토리 복사**
 - 포트 4746/4747은 dogroo의 D(4)·G(7)에서 따온 값 (로컬 충돌 회피)
 
 ## 서버 초기 셋업

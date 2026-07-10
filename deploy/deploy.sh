@@ -3,7 +3,7 @@
 # webhook(hooks.json)이 호출. 직접 실행해도 동작한다.
 set -euo pipefail
 
-REPO_DIR="${REPO_DIR:-/srv/dogroo/app}"
+REPO_DIR="${REPO_DIR:-/root/workspace/dogroo}"
 LOG_FILE="${DEPLOY_LOG:-/var/log/dogroo-deploy.log}"
 
 # 동시 배포 직렬화 - 앞선 배포가 끝날 때까지 대기

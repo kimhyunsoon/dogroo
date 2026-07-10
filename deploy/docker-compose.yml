@@ -27,7 +27,7 @@ services:
     environment:
       DATA_DIR: /data
     volumes:
-      - /srv/dogroo/data:/data         # SQLite + photos (백업 = 이 디렉토리 복사)
+      - /root/workspace/dogroo-data:/data         # SQLite + photos (백업 = 이 디렉토리 복사)
     expose:
       - "4746"
 

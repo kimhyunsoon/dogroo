@@ -1,8 +1,8 @@
 [
   {
     "id": "hook",
-    "execute-command": "/srv/dogroo/app/deploy/deploy.sh",
-    "command-working-directory": "/srv/dogroo/app/deploy",
+    "execute-command": "/root/workspace/dogroo/deploy/deploy.sh",
+    "command-working-directory": "/root/workspace/dogroo/deploy",
     "include-command-output-in-response": false,
     "response-message": "queued",
     "pass-arguments-to-command": [
