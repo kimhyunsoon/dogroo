@@ -69,8 +69,8 @@ fi
 step "4/7 리포 클론·최신화"
 mkdir -p "$DATA_DIR"
 if [[ -d "$APP_DIR/.git" ]]; then
-  # CentOS 7의 git 1.8은 -C 옵션이 없어 서브셸로 이동
-  ( cd "$APP_DIR" && git fetch origin main && git reset --hard origin/main )
+  # git 1.8 호환: -C 없음, 브랜치 지정 fetch는 origin/main ref를 갱신하지 않으므로 FETCH_HEAD 사용
+  ( cd "$APP_DIR" && git fetch origin main && git reset --hard FETCH_HEAD )
 else
   git clone "$REPO_SSH" "$APP_DIR"
 fi
