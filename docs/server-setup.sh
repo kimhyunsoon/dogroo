@@ -36,6 +36,14 @@ else
   skip
 fi
 systemctl enable --now docker
+# 커널 3.10 + 최신 Node 이미지 호환: 구식 seccomp이 새 시스템콜에 EPERM을 돌려줘
+# pnpm 등이 깨진다 → 최신 프로필(미지원 시 ENOSYS 반환)로 교체
+if [[ ! -f /etc/docker/seccomp.json ]]; then
+  curl -fsSL -o /etc/docker/seccomp.json \
+    https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
+  printf '{ "seccomp-profile": "/etc/docker/seccomp.json" }\n' > /etc/docker/daemon.json
+  systemctl restart docker
+fi
 docker version --format '    docker {{.Server.Version}}'
 # overlay2 사전 확인 (xfs ftype=0이면 컨테이너 파일시스템이 깨질 수 있음)
 if xfs_info / >/dev/null 2>&1 && ! xfs_info / | grep -q 'ftype=1'; then
@@ -49,12 +57,12 @@ if [[ ! -f ~/.ssh/id_ed25519 ]]; then
 fi
 ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
 if [[ ! -d "$APP_DIR/.git" ]]; then
-  echo "    아래 공개키를 GitHub 리포에 등록하세요:"
+  echo "    아래 공개키가 GitHub 리포에 등록되어 있어야 클론이 가능합니다:"
   echo "    github.com/kimhyunsoon/dogroo → Settings → Deploy keys → Add (read-only면 충분)"
   echo
   printf '\033[1;33m%s\033[0m\n' "$(cat ~/.ssh/id_ed25519.pub)"
   echo
-  read -rp "    등록을 마쳤으면 Enter를 누르세요... "
+  read -rp "    이미 등록했거나 방금 등록했다면 Enter를 누르세요... "
 fi
 
 # ── 4. 클론 + 데이터 디렉토리 ──────────────────────────────────────
