@@ -8,7 +8,9 @@ REPO_SSH="git@github.com:kimhyunsoon/dogroo.git"
 APP_DIR="/root/workspace/dogroo"
 DATA_DIR="/root/workspace/dogroo-data"
 WEBHOOK_VERSION="2.8.2"
-DEFAULT_DOMAIN="sudosoon.iptime.org"
+# iptime DDNS는 CAA 레코드로 인증서 발급이 차단되어 DuckDNS 사용
+DOMAIN="dogroo.duckdns.org"
+DUCK_SUB="dogroo"
 
 step() { printf '\n\033[1;32m==> %s\033[0m\n' "$1"; }
 skip() { printf '    (이미 완료 - 건너뜀)\n'; }
@@ -16,7 +18,7 @@ skip() { printf '    (이미 완료 - 건너뜀)\n'; }
 [[ $EUID -eq 0 ]] || { echo "root로 실행하세요 (sudo -i)"; exit 1; }
 
 # ── 1. yum 저장소를 vault로 교체 (CentOS 7 EOL 대응) ──────────────
-step "1/7 yum 저장소 복구"
+step "1/8 yum 저장소 복구"
 if grep -rq '^mirrorlist=' /etc/yum.repos.d/CentOS-*.repo 2>/dev/null; then
   sed -i -e 's|^mirrorlist=|#mirrorlist=|' \
          -e 's|^#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|' \
@@ -27,7 +29,7 @@ else
 fi
 
 # ── 2. git + Docker CE + compose plugin ───────────────────────────
-step "2/7 Docker 설치"
+step "2/8 Docker 설치"
 if ! command -v docker >/dev/null; then
   yum install -y yum-utils git
   yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -51,7 +53,7 @@ if xfs_info / >/dev/null 2>&1 && ! xfs_info / | grep -q 'ftype=1'; then
 fi
 
 # ── 3. GitHub Deploy Key ───────────────────────────────────────────
-step "3/7 GitHub Deploy Key"
+step "3/8 GitHub Deploy Key"
 if [[ ! -f ~/.ssh/id_ed25519 ]]; then
   ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519 >/dev/null
 fi
@@ -66,7 +68,7 @@ if [[ ! -d "$APP_DIR/.git" ]]; then
 fi
 
 # ── 4. 클론 또는 최신화 + 데이터 디렉토리 ──────────────────────────
-step "4/7 리포 클론·최신화"
+step "4/8 리포 클론·최신화"
 mkdir -p "$DATA_DIR"
 if [[ -d "$APP_DIR/.git" ]]; then
   # git 1.8 호환: -C 없음, 브랜치 지정 fetch는 origin/main ref를 갱신하지 않으므로 FETCH_HEAD 사용
@@ -76,7 +78,7 @@ else
 fi
 
 # ── 5. 시크릿 파일 (/etc/dogroo) ───────────────────────────────────
-step "5/7 시크릿 파일"
+step "5/8 시크릿 파일"
 mkdir -p /etc/dogroo
 if [[ ! -f /etc/dogroo/deploy.env ]]; then
   read -rp "    DEPLOY_KEY (GitHub Secrets에 등록한 것과 동일한 난수): " deploy_key
@@ -87,15 +89,32 @@ if [[ ! -f /etc/dogroo/backend.env ]]; then
   read -rsp "    앱 로그인 비밀번호: " app_pass; echo
   printf 'INITIAL_USERNAME=%s\nINITIAL_PASSWORD=%s\n' "$app_user" "$app_pass" > /etc/dogroo/backend.env
 fi
-if [[ ! -f /etc/dogroo/caddy.env ]]; then
-  read -rp "    도메인 [$DEFAULT_DOMAIN]: " domain
-  printf 'DOGROO_DOMAIN=%s\n' "${domain:-$DEFAULT_DOMAIN}" > /etc/dogroo/caddy.env
-fi
-chmod 600 /etc/dogroo/*.env
+chmod 600 /etc/dogroo/*.env 2>/dev/null || true
 echo "    /etc/dogroo 준비 완료"
 
+# ── 6. DuckDNS (도메인 + IP 자동 갱신) ─────────────────────────────
+step "6/8 DuckDNS"
+if [[ ! -f /etc/cron.d/duckdns ]]; then
+  read -rp "    DuckDNS token: " duck_token
+  cat > /etc/cron.d/duckdns <<EOF
+*/10 * * * * root curl -s "https://www.duckdns.org/update?domains=${DUCK_SUB}&token=${duck_token}&ip=" >/dev/null
+EOF
+  chmod 644 /etc/cron.d/duckdns
+  printf '    IP 즉시 등록: '
+  curl -s "https://www.duckdns.org/update?domains=${DUCK_SUB}&token=${duck_token}&ip="
+  echo " (OK면 성공)"
+else
+  skip
+fi
+# 도메인이 바뀌었으면 caddy.env 교체 (기존 iptime 값 포함)
+if ! grep -qs "DOGROO_DOMAIN=${DOMAIN}" /etc/dogroo/caddy.env; then
+  printf 'DOGROO_DOMAIN=%s\n' "$DOMAIN" > /etc/dogroo/caddy.env
+  chmod 600 /etc/dogroo/caddy.env
+  echo "    도메인: $DOMAIN"
+fi
+
 # ── 6. 배포 웹훅 (adnanh/webhook + systemd) ────────────────────────
-step "6/7 배포 웹훅"
+step "7/8 배포 웹훅"
 if ! command -v webhook >/dev/null; then
   curl -fsSL -o /tmp/webhook.tar.gz \
     "https://github.com/adnanh/webhook/releases/download/${WEBHOOK_VERSION}/webhook-linux-amd64.tar.gz"
@@ -109,18 +128,19 @@ systemctl enable --now webhook
 systemctl is-active webhook >/dev/null && echo "    webhook 실행 중 (:9099)"
 
 # ── 7. 메인 스택 기동 ──────────────────────────────────────────────
-step "7/7 앱 기동 (첫 빌드는 몇 분 걸립니다)"
+step "8/8 앱 기동 (첫 빌드는 몇 분 걸립니다)"
 cd "$APP_DIR/deploy"
 docker compose up -d --build
 echo
 docker compose logs backend 2>/dev/null | tail -5
 
 printf '\n\033[1;32m✔ 서버 셋업 완료. 남은 일:\033[0m\n'
-cat <<'EOF'
+cat <<EOF
   1. iptime 관리 페이지에서
      - 서버 내부 IP를 DHCP 고정 할당
      - 포트포워딩: 외부 80 → 서버:80, 외부 443 → 서버:443 (TCP)
-  2. 브라우저에서 https://<도메인> 접속 → 로그인 확인
-     (인증서 발급에 1~2분 걸릴 수 있음)
-  3. 배포 테스트: 노트북에서 push → tail -f /var/log/dogroo-deploy.log
+  2. GitHub Secrets의 DEPLOY_URL을 https://${DOMAIN}/deploy/hook 으로
+  3. 인증서 발급 확인: docker logs dogroo-caddy-1 2>&1 | grep -i cert
+  4. 브라우저에서 https://${DOMAIN} 접속 → 로그인 확인
+  5. 배포 테스트: 노트북에서 push → tail -f /var/log/dogroo-deploy.log
 EOF
