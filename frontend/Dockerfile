@@ -1,4 +1,5 @@
-FROM node:22-alpine AS build
+# slim(glibc) 사용 - 서버 커널(3.10)에서 alpine(musl) 기반 pnpm이 EPERM으로 깨짐
+FROM node:22-slim AS build
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./

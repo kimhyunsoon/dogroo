@@ -14,8 +14,9 @@ flock 9
   echo "[$(date '+%F %T')] 배포 시작: ${1:-}"
 
   cd "$REPO_DIR"
+  # git 1.8 호환: 브랜치 지정 fetch는 origin/main ref를 갱신하지 않으므로 FETCH_HEAD 사용
   git fetch origin main
-  git reset --hard origin/main
+  git reset --hard FETCH_HEAD
 
   cd deploy
   IFS=',' read -ra targets <<< "${1:-}"
