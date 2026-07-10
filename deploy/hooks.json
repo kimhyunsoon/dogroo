@@ -1,0 +1,19 @@
+[
+  {
+    "id": "hook",
+    "execute-command": "/srv/dogroo/app/deploy/deploy.sh",
+    "command-working-directory": "/srv/dogroo/app/deploy",
+    "include-command-output-in-response": false,
+    "response-message": "queued",
+    "pass-arguments-to-command": [
+      { "source": "payload", "name": "targets" }
+    ],
+    "trigger-rule": {
+      "match": {
+        "type": "value",
+        "value": "{{ getenv \"DEPLOY_KEY\" }}",
+        "parameter": { "source": "header", "name": "X-Deploy-Key" }
+      }
+    }
+  }
+]

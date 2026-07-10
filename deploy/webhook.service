@@ -1,0 +1,15 @@
+[Unit]
+Description=dogroo deploy webhook (adnanh/webhook)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+# DEPLOY_KEY (hooks.json의 getenv 템플릿이 참조)
+EnvironmentFile=/etc/dogroo/deploy.env
+# -urlprefix deploy + 훅 id "hook" → 경로가 /deploy/hook 이 된다 (Caddy 프록시와 일치)
+ExecStart=/usr/local/bin/webhook -hooks /srv/dogroo/app/deploy/hooks.json -template -ip 0.0.0.0 -port 9099 -urlprefix deploy
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

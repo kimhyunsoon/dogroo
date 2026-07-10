@@ -26,20 +26,20 @@ jobs:
         id: targets
         run: |
           targets=()
-          [[ "${{ steps.changes.outputs.backend }}" == "true" ]] && targets+=('"backend"')
-          [[ "${{ steps.changes.outputs.frontend }}" == "true" ]] && targets+=('"frontend"')
-          [[ "${{ steps.changes.outputs.deploy }}" == "true" ]] && targets+=('"deploy"')
-          list=$(IFS=,; echo "[${targets[*]-}]")
-          echo "list=$list" >> "$GITHUB_OUTPUT"
-          echo "배포 대상: $list"
+          [[ "${{ steps.changes.outputs.backend }}" == "true" ]] && targets+=('backend')
+          [[ "${{ steps.changes.outputs.frontend }}" == "true" ]] && targets+=('frontend')
+          [[ "${{ steps.changes.outputs.deploy }}" == "true" ]] && targets+=('deploy')
+          csv=$(IFS=,; echo "${targets[*]-}")
+          echo "csv=$csv" >> "$GITHUB_OUTPUT"
+          echo "배포 대상: $csv"
 
       - name: 서버 웹훅 호출
-        if: steps.targets.outputs.list != '[]'
+        if: steps.targets.outputs.csv != ''
         run: |
           curl -fsS -X POST "$DEPLOY_URL" \
             -H "X-Deploy-Key: $DEPLOY_KEY" \
             -H "Content-Type: application/json" \
-            -d "{\"targets\":${{ steps.targets.outputs.list }},\"sha\":\"${{ github.sha }}\"}"
+            -d "{\"targets\":\"${{ steps.targets.outputs.csv }}\",\"sha\":\"${{ github.sha }}\"}"
         env:
           DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
