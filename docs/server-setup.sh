@@ -40,7 +40,7 @@ systemctl enable --now docker
 # pnpm 등이 깨진다 → 최신 프로필(미지원 시 ENOSYS 반환)로 교체
 if [[ ! -f /etc/docker/seccomp.json ]]; then
   curl -fsSL -o /etc/docker/seccomp.json \
-    https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
+    https://raw.githubusercontent.com/moby/profiles/main/seccomp/default.json
   printf '{ "seccomp-profile": "/etc/docker/seccomp.json" }\n' > /etc/docker/daemon.json
   systemctl restart docker
 fi
