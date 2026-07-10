@@ -31,7 +31,8 @@ async function bootstrapInitialUser(): Promise<void> {
 }
 
 async function buildServer(): Promise<FastifyInstance> {
-  const app = Fastify({ logger: true });
+  // trustProxy: Caddy 뒤에서 X-Forwarded-Proto를 신뢰해야 secure 세션 쿠키가 발급된다
+  const app = Fastify({ logger: true, trustProxy: true });
 
   await app.register(cookie);
   await app.register(session, {
