@@ -69,8 +69,8 @@ fi
 step "4/7 리포 클론·최신화"
 mkdir -p "$DATA_DIR"
 if [[ -d "$APP_DIR/.git" ]]; then
-  git -C "$APP_DIR" fetch origin main
-  git -C "$APP_DIR" reset --hard origin/main
+  # CentOS 7의 git 1.8은 -C 옵션이 없어 서브셸로 이동
+  ( cd "$APP_DIR" && git fetch origin main && git reset --hard origin/main )
 else
   git clone "$REPO_SSH" "$APP_DIR"
 fi
