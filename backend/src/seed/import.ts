@@ -6,7 +6,7 @@ import { config } from '../config.js';
 
 // groo(plantingo) 백업 → dogroo 시드 임포트
 // 매 기동 시 실행되며 import_ledger에 없는 원본 행만 INSERT한다.
-// 이미 들어온 행은 절대 갱신하지 않음 - 사용자가 앱에서 수정했을 수 있다. (docs/migration.md 참고)
+// 이미 들어온 행은 절대 갱신하지 않음 - 사용자가 앱에서 수정했을 수 있다.
 
 // RFC4180 간이 CSV 파서 (BOM·CRLF·따옴표 내 콤마/개행 지원)
 function parseCsv(text: string): Record<string, string>[] {

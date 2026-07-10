@@ -8,7 +8,7 @@ export interface SpeciesIntervals {
   repot_months: number | null;
 }
 
-// 화분이 작을수록 빨리 마르므로 주기 단축 (docs/overview.html 추천 로직)
+// 화분이 작을수록 빨리 마르므로 주기 단축
 const POT_FACTOR: Record<PotSize, number> = { S: 0.8, M: 1.0, L: 1.3 };
 
 // 4~9월 여름 주기, 10~3월 겨울 주기
