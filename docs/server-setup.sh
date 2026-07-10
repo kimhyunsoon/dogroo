@@ -130,7 +130,8 @@ if ! command -v webhook >/dev/null; then
 fi
 cp "$APP_DIR/deploy/webhook.service" /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now webhook
+systemctl enable webhook >/dev/null 2>&1
+systemctl restart webhook
 systemctl is-active webhook >/dev/null && echo "    webhook 실행 중 (:9099)"
 
 # ── 8. 메인 스택 기동 ──────────────────────────────────────────────
