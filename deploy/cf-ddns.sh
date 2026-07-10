@@ -12,22 +12,31 @@ cf() {
   curl -s -H "Authorization: Bearer ${CF_TOKEN}" -H "Content-Type: application/json" "$@"
 }
 
-ip=$(curl -s https://api.ipify.org)
-[[ -n "$ip" ]] || { echo "공인 IP 조회 실패"; exit 1; }
+# 공인 IP 조회 - cloudflare trace 우선, 실패 시 ipify(http) 폴백
+ip=$(curl -s https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null | grep -o '^ip=[0-9.]*' | cut -d= -f2 || true)
+if [[ -z "$ip" ]]; then
+  ip=$(curl -s http://api.ipify.org 2>/dev/null || true)
+fi
+[[ "$ip" =~ ^[0-9.]+$ ]] || { echo "공인 IP 조회 실패"; exit 1; }
 
-zone_id=$(cf "${API}/zones?name=${ZONE_NAME}" | grep -o '"id":"[a-f0-9]\{32\}"' | head -1 | cut -d'"' -f4)
-[[ -n "$zone_id" ]] || { echo "zone 조회 실패 (토큰 권한 확인)"; exit 1; }
+zone_json=$(cf "${API}/zones?name=${ZONE_NAME}")
+zone_id=$(echo "$zone_json" | grep -o '"id":"[a-f0-9]\{32\}"' | head -1 | cut -d'"' -f4 || true)
+[[ -n "$zone_id" ]] || { echo "zone 조회 실패: ${zone_json:0:200}"; exit 1; }
 
 record_json=$(cf "${API}/zones/${zone_id}/dns_records?type=A&name=${RECORD_NAME}")
-record_id=$(echo "$record_json" | grep -o '"id":"[a-f0-9]\{32\}"' | head -1 | cut -d'"' -f4)
-current_ip=$(echo "$record_json" | grep -o '"content":"[0-9.]*"' | head -1 | cut -d'"' -f4)
+record_id=$(echo "$record_json" | grep -o '"id":"[a-f0-9]\{32\}"' | head -1 | cut -d'"' -f4 || true)
+current_ip=$(echo "$record_json" | grep -o '"content":"[0-9.]*"' | head -1 | cut -d'"' -f4 || true)
 
 payload="{\"type\":\"A\",\"name\":\"${RECORD_NAME}\",\"content\":\"${ip}\",\"ttl\":300,\"proxied\":false}"
 
 if [[ -z "$record_id" ]]; then
-  cf -X POST "${API}/zones/${zone_id}/dns_records" --data "$payload" >/dev/null
+  result=$(cf -X POST "${API}/zones/${zone_id}/dns_records" --data "$payload")
+  echo "$result" | grep -q '"success":true' || { echo "레코드 생성 실패: ${result:0:200}"; exit 1; }
   echo "A 레코드 생성: ${RECORD_NAME} → ${ip}"
 elif [[ "$current_ip" != "$ip" ]]; then
-  cf -X PUT "${API}/zones/${zone_id}/dns_records/${record_id}" --data "$payload" >/dev/null
+  result=$(cf -X PUT "${API}/zones/${zone_id}/dns_records/${record_id}" --data "$payload")
+  echo "$result" | grep -q '"success":true' || { echo "레코드 갱신 실패: ${result:0:200}"; exit 1; }
   echo "IP 갱신: ${current_ip} → ${ip}"
+else
+  echo "변경 없음: ${RECORD_NAME} → ${ip}"
 fi
