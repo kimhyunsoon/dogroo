@@ -1,11 +1,13 @@
 import { api } from './api.js';
 
-// VAPID 공개키(base64url) → PushManager가 요구하는 Uint8Array
-function vapidKeyToUint8(key: string): Uint8Array {
+// VAPID 공개키(base64url) → PushManager가 요구하는 BufferSource (ArrayBuffer 기반이어야 함)
+function vapidKeyToUint8(key: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (key.length % 4)) % 4);
   const base64 = (key + padding).replace(/-/g, '+').replace(/_/g, '/');
   const raw = atob(base64);
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+  const bytes = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
 }
 
 // 알림 권한 확인 후 이 기기를 푸시 구독시킨다. 성공 여부 반환
