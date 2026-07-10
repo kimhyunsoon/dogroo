@@ -35,6 +35,7 @@ groo/  (GitHub 개인 리포, main 단일 브랜치)
 │   ├── Caddyfile          # 메인 리버스 프록시 (TLS)
 │   ├── hooks.json         # 배포 웹훅 정의 (adnanh/webhook 설정)
 │   ├── webhook.service    # 웹훅 systemd 유닛
+│   ├── cf-ddns.sh         # Cloudflare A 레코드 IP 갱신 (크론)
 │   └── deploy.sh          # git 최신화 + 대상만 재빌드·재기동 (flock 직렬화)
 ├── .github/workflows/deploy.yml
 └── dev.sh                 # 로컬 개발 (backend :4746 + frontend :4747)
@@ -56,12 +57,6 @@ push (main)
       아니면 → compose build <targets> && up -d <targets>
 ```
 
-| 결정 | 이유 |
-|---|---|
-| 웹훅 = Go 정적 바이너리 (adnanh/webhook) | 호스트가 CentOS 7이라 Node 18+ 실행 불가(glibc 2.17). 정적 빌드라 OS 제약 없음, 이 용도의 검증된 도구. 상세는 docs/server-setup.md |
-| 즉시 응답 + flock 직렬화 | 연속 push에도 배포가 겹치지 않음 |
-| 키 검증은 webhook trigger-rule | 헤더 불일치 시 스크립트 실행 자체가 안 됨 |
-
 ### 시크릿
 
 | 위치 | 키 | 비고 |
@@ -69,12 +64,13 @@ push (main)
 | GitHub Secrets | `DEPLOY_KEY` (고정 난수), `DEPLOY_URL` | Actions → 웹훅 인증 |
 | 서버 `/etc/dogroo/deploy.env` | `DEPLOY_KEY` | webhook systemd EnvironmentFile |
 | 서버 `/etc/dogroo/backend.env` | `INITIAL_USERNAME/PASSWORD` | 최초 계정. 세션 시크릿·VAPID 키쌍은 최초 기동 시 자동 생성되어 데이터 디렉토리에 보관 |
-| 서버 `/etc/dogroo/caddy.env` | `DOGROO_DOMAIN` | 메인 Caddyfile 사이트 주소 |
+| 서버 `/etc/dogroo/caddy.env` | `DOGROO_DOMAIN` | 메인 Caddyfile 사이트 주소 (`dogroo.sudosoon.org`) |
+| 서버 `/etc/dogroo/cf.env` | `CF_TOKEN` | Cloudflare DNS 갱신용 (cf-ddns.sh) |
 
 ## 런타임 토폴로지
 
 ```
-인터넷 ── iptime 공유기 (80/443 포워딩, DDNS)
+인터넷 ── dogroo.sudosoon.org (Cloudflare DNS) ── iptime 공유기 (80/443 포워딩)
              │
         [caddy 컨테이너]  ── HTTPS 자동 인증서
              ├─ /api/*        → backend:4746   (Fastify)
@@ -89,8 +85,20 @@ push (main)
 ```
 
 - 데이터는 전부 호스트 `/root/workspace/dogroo-data`에 존재 → **백업 = 이 디렉토리 복사**
-- 포트 4746/4747은 dogroo의 D(4)·G(7)에서 따온 값 (로컬 충돌 회피)
+- 유동 IP는 `deploy/cf-ddns.sh`(크론 10분)가 Cloudflare A 레코드에 반영
 
-## 서버 초기 셋업
+## 서버 셋업
 
-CentOS 7 유지 전제의 단계별 절차는 **[server-setup.md](server-setup.md)** 참고.
+서버(CentOS 7) 세팅은 **`docs/server-setup.sh`** 하나로 처리한다 (root 실행, 재실행 안전, 리포 최신화 포함 - 수동 배포 용도로도 사용 가능).
+
+```sh
+bash /root/workspace/dogroo/docs/server-setup.sh
+```
+
+실행 중 입력: GitHub Deploy Key 등록(안내 출력), `DEPLOY_KEY`, 앱 계정, Cloudflare API 토큰('Edit zone DNS', Zone: sudosoon.org).
+
+스크립트 밖에서 할 일:
+
+1. GitHub Secrets - `DEPLOY_KEY`(난수), `DEPLOY_URL`(`https://dogroo.sudosoon.org/deploy/hook`)
+2. iptime - 서버 내부 IP 고정 + 포트포워딩 80→80, 443→443 (TCP)
+3. 확인 - `docker logs dogroo-caddy-1 | grep -i cert`(인증서), 접속·로그인, push 배포 테스트(`tail -f /var/log/dogroo-deploy.log`)

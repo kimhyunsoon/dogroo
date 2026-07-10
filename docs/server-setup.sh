@@ -8,9 +8,8 @@ REPO_SSH="git@github.com:kimhyunsoon/dogroo.git"
 APP_DIR="/root/workspace/dogroo"
 DATA_DIR="/root/workspace/dogroo-data"
 WEBHOOK_VERSION="2.8.2"
-# iptime DDNS는 CAA 레코드로 인증서 발급이 차단되어 DuckDNS 사용
-DOMAIN="dogroo.duckdns.org"
-DUCK_SUB="dogroo"
+# 앱 도메인 (Cloudflare DNS)
+DOMAIN="dogroo.sudosoon.org"
 
 step() { printf '\n\033[1;32m==> %s\033[0m\n' "$1"; }
 skip() { printf '    (이미 완료 - 건너뜀)\n'; }
@@ -41,8 +40,7 @@ else
   skip
 fi
 systemctl enable --now docker
-# 커널 3.10 + 최신 Node 이미지 호환: 구식 seccomp이 새 시스템콜에 EPERM을 돌려줘
-# pnpm 등이 깨진다 → 최신 프로필(미지원 시 ENOSYS 반환)로 교체
+# 구커널(3.10) 호환용 최신 seccomp 프로필 적용
 if [[ ! -f /etc/docker/seccomp.json ]]; then
   curl -fsSL -o /etc/docker/seccomp.json \
     https://raw.githubusercontent.com/moby/profiles/main/seccomp/default.json
@@ -74,7 +72,7 @@ fi
 step "4/8 리포 클론·최신화"
 mkdir -p "$DATA_DIR"
 if [[ -d "$APP_DIR/.git" ]]; then
-  # git 1.8 호환: -C 없음, 브랜치 지정 fetch는 origin/main ref를 갱신하지 않으므로 FETCH_HEAD 사용
+  # git 1.8 호환 (FETCH_HEAD 기준으로 최신화)
   ( cd "$APP_DIR" && git fetch origin main && git reset --hard FETCH_HEAD )
 else
   git clone "$REPO_SSH" "$APP_DIR"
@@ -95,28 +93,33 @@ fi
 chmod 600 /etc/dogroo/*.env 2>/dev/null || true
 echo "    /etc/dogroo 준비 완료"
 
-# ── 6. DuckDNS (도메인 + IP 자동 갱신) ─────────────────────────────
-step "6/8 DuckDNS"
-if [[ ! -f /etc/cron.d/duckdns ]]; then
-  read -rp "    DuckDNS token: " duck_token
-  cat > /etc/cron.d/duckdns <<EOF
-*/10 * * * * root curl -s "https://www.duckdns.org/update?domains=${DUCK_SUB}&token=${duck_token}&ip=" >/dev/null
-EOF
-  chmod 644 /etc/cron.d/duckdns
-  printf '    IP 즉시 등록: '
-  curl -s "https://www.duckdns.org/update?domains=${DUCK_SUB}&token=${duck_token}&ip="
-  echo " (OK면 성공)"
-else
-  skip
+# ── 6. Cloudflare DNS (도메인 + IP 자동 갱신) ──────────────────────
+step "6/8 Cloudflare DNS"
+rm -f /etc/cron.d/duckdns # 구 DDNS 크론 제거
+if [[ ! -f /etc/dogroo/cf.env ]]; then
+  echo "    Cloudflare API 토큰이 필요합니다:"
+  echo "    dash.cloudflare.com → 우측 상단 프로필 → My Profile → API Tokens → Create Token"
+  echo "    → 'Edit zone DNS' 템플릿 선택, Zone Resources: sudosoon.org"
+  read -rp "    CF API Token: " cf_token
+  printf 'CF_TOKEN=%s\n' "$cf_token" > /etc/dogroo/cf.env
+  chmod 600 /etc/dogroo/cf.env
 fi
-# 도메인이 바뀌었으면 caddy.env 교체 (기존 iptime 값 포함)
+cat > /etc/cron.d/cf-ddns <<EOF
+*/10 * * * * root bash ${APP_DIR}/deploy/cf-ddns.sh >/dev/null 2>&1
+EOF
+chmod 644 /etc/cron.d/cf-ddns
+echo "    레코드 등록·확인:"
+bash "$APP_DIR/deploy/cf-ddns.sh" && echo "    완료 (${DOMAIN})"
+# 도메인이 바뀌면 caddy.env 교체 (compose가 env_file 변경을 감지하지 못해 강제 재생성 필요)
+CADDY_RECREATE=0
 if ! grep -qs "DOGROO_DOMAIN=${DOMAIN}" /etc/dogroo/caddy.env; then
   printf 'DOGROO_DOMAIN=%s\n' "$DOMAIN" > /etc/dogroo/caddy.env
   chmod 600 /etc/dogroo/caddy.env
+  CADDY_RECREATE=1
   echo "    도메인: $DOMAIN"
 fi
 
-# ── 6. 배포 웹훅 (adnanh/webhook + systemd) ────────────────────────
+# ── 7. 배포 웹훅 (adnanh/webhook + systemd) ────────────────────────
 step "7/8 배포 웹훅"
 if ! command -v webhook >/dev/null; then
   curl -fsSL -o /tmp/webhook.tar.gz \
@@ -130,10 +133,14 @@ systemctl daemon-reload
 systemctl enable --now webhook
 systemctl is-active webhook >/dev/null && echo "    webhook 실행 중 (:9099)"
 
-# ── 7. 메인 스택 기동 ──────────────────────────────────────────────
+# ── 8. 메인 스택 기동 ──────────────────────────────────────────────
 step "8/8 앱 기동 (첫 빌드는 몇 분 걸립니다)"
 cd "$APP_DIR/deploy"
 docker compose up -d --build
+if [[ "$CADDY_RECREATE" == "1" ]]; then
+  echo "    도메인 변경 반영을 위해 caddy 재생성"
+  docker compose up -d --force-recreate caddy
+fi
 echo
 docker compose logs backend 2>/dev/null | tail -5
 
