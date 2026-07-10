@@ -65,11 +65,12 @@ if [[ ! -d "$APP_DIR/.git" ]]; then
   read -rp "    이미 등록했거나 방금 등록했다면 Enter를 누르세요... "
 fi
 
-# ── 4. 클론 + 데이터 디렉토리 ──────────────────────────────────────
-step "4/7 리포 클론"
+# ── 4. 클론 또는 최신화 + 데이터 디렉토리 ──────────────────────────
+step "4/7 리포 클론·최신화"
 mkdir -p "$DATA_DIR"
 if [[ -d "$APP_DIR/.git" ]]; then
-  skip
+  git -C "$APP_DIR" fetch origin main
+  git -C "$APP_DIR" reset --hard origin/main
 else
   git clone "$REPO_SSH" "$APP_DIR"
 fi
