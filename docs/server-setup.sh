@@ -15,6 +15,9 @@ DUCK_SUB="dogroo"
 step() { printf '\n\033[1;32m==> %s\033[0m\n' "$1"; }
 skip() { printf '    (이미 완료 - 건너뜀)\n'; }
 
+# 실행 중 git reset으로 스크립트 자신이 갱신되어도 안전하도록 전체를 함수로 감싼다
+main() {
+
 [[ $EUID -eq 0 ]] || { echo "root로 실행하세요 (sudo -i)"; exit 1; }
 
 # ── 1. yum 저장소를 vault로 교체 (CentOS 7 EOL 대응) ──────────────
@@ -144,3 +147,6 @@ cat <<EOF
   4. 브라우저에서 https://${DOMAIN} 접속 → 로그인 확인
   5. 배포 테스트: 노트북에서 push → tail -f /var/log/dogroo-deploy.log
 EOF
+}
+
+main "$@"
