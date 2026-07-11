@@ -39,6 +39,15 @@ export async function logRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // 오늘 기록 토글 취소 (목록에서 완료 버튼 재탭)
+  app.delete<{ Params: { id: string } }>('/plants/:id/waterings/today', async (req) => {
+    db.prepare('DELETE FROM watering_logs WHERE plant_id = ? AND watered_at = ?').run(
+      req.params.id,
+      todayStr(config.tz),
+    );
+    return { ok: true };
+  });
+
   // 실행취소·오기록 정정용 삭제
   app.delete<{ Params: { id: string } }>('/waterings/:id', async (req) => {
     db.prepare('DELETE FROM watering_logs WHERE id = ?').run(req.params.id);
@@ -60,6 +69,14 @@ export async function logRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(201).send({ id: Number(result.lastInsertRowid), repotted_at: at });
     },
   );
+
+  app.delete<{ Params: { id: string } }>('/plants/:id/repottings/today', async (req) => {
+    db.prepare('DELETE FROM repotting_logs WHERE plant_id = ? AND repotted_at = ?').run(
+      req.params.id,
+      todayStr(config.tz),
+    );
+    return { ok: true };
+  });
 
   app.delete<{ Params: { id: string } }>('/repottings/:id', async (req) => {
     db.prepare('DELETE FROM repotting_logs WHERE id = ?').run(req.params.id);

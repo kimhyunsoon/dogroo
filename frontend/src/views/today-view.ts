@@ -141,6 +141,17 @@ export class TodayView extends LitElement {
     void form.show(plant.id);
   }
 
+  // 오늘 완료한 기록의 토글 취소 (흐린 체크 버튼 재탭)
+  private async onUndo(e: Event): Promise<void> {
+    const plant = (e.target as PlantItem).plant;
+    const { kind } = (e as CustomEvent<{ kind: Kind }>).detail;
+    const isWater = kind === 'water';
+    await api(`/api/plants/${plant.id}/${isWater ? 'waterings' : 'repottings'}/today`, { method: 'DELETE' });
+    await this.load();
+    void refreshPlants();
+    toast(`${plant.name} 오늘 ${isWater ? '물주기' : '분갈이'} 기록을 취소했어요`);
+  }
+
   private renderItem(p: PlantSummary, kind: Kind): TemplateResult {
     return html`
       <plant-item
@@ -150,6 +161,7 @@ export class TodayView extends LitElement {
         @open=${(): void => { location.hash = `#/plants/${p.id}`; }}
         @edit=${this.openEdit}
         @complete=${this.onComplete}
+        @undo=${this.onUndo}
       ></plant-item>
     `;
   }

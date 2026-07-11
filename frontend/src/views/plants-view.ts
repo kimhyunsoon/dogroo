@@ -207,6 +207,17 @@ export class PlantsView extends LitElement {
     });
   }
 
+  // 오늘 완료한 기록의 토글 취소 (흐린 체크 버튼 재탭)
+  private async onUndo(e: Event): Promise<void> {
+    const plant = (e.target as PlantItem).plant;
+    const { kind } = (e as CustomEvent<{ kind: 'water' | 'repot' }>).detail;
+    const isWater = kind === 'water';
+    await api(`/api/plants/${plant.id}/${isWater ? 'waterings' : 'repottings'}/today`, { method: 'DELETE' });
+    await this.load();
+    void refreshPlants();
+    toast(`${plant.name} 오늘 ${isWater ? '물주기' : '분갈이'} 기록을 취소했어요`);
+  }
+
   private openForm(plantId?: number): void {
     const form = this.renderRoot.querySelector('plant-form-sheet') as PlantFormSheet;
     void form.show(plantId);
@@ -235,6 +246,7 @@ export class PlantsView extends LitElement {
         @open=${(): void => { location.hash = `#/plants/${p.id}`; }}
         @edit=${(e: Event): void => this.openForm((e.target as PlantItem).plant.id)}
         @complete=${this.onComplete}
+        @undo=${this.onUndo}
       ></plant-item>
     `;
   }

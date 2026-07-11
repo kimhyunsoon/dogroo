@@ -207,8 +207,9 @@ export class PlantDetailView extends LitElement {
     const LEFT = 20; // 요일 라벨 영역
     const TOP = 16; // 월 라벨 영역
     const step = CELL + GAP;
-    const width = LEFT + HEATMAP_WEEKS * step - GAP;
-    const height = TOP + 7 * step - GAP;
+    // +2: 오늘 셀의 테두리(stroke)가 viewBox 가장자리에서 잘리지 않게 여유
+    const width = LEFT + HEATMAP_WEEKS * step - GAP + 2;
+    const height = TOP + 7 * step - GAP + 2;
     const cells: TemplateResult[] = [];
     let prevMonth = '';
     for (let w = 0; w < HEATMAP_WEEKS; w++) {
