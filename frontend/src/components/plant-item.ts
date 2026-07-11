@@ -3,12 +3,13 @@ import { customElement, property } from 'lit/decorators.js';
 import { tokens, ui } from '../style.js';
 import { today } from '../api.js';
 import { Press } from '../ui.js';
+import { icon } from '../icons.js';
 import { pickBackfillDate } from '../sheets/backfill-sheet.js';
-import { waterBadge, fmtRelDays, abbrevSci } from '../fmt.js';
+import { fmtRel, abbrevSci } from '../fmt.js';
 import type { PlantSummary } from '../types.js';
 
-// 목록 공용 아이템
-// 탭 → open 이벤트 / 길게 → edit 이벤트 / 물주기 탭 → water / 물주기 길게 → 날짜 선택 후 water
+// 목록 공용 아이템 (kind: 물주기/분갈이 - 오늘 탭 분갈이 섹션은 repot)
+// 탭 → open / 길게 → edit / 완료 버튼 탭 → complete {kind} / 길게 → 날짜 선택 후 complete {kind, date}
 @customElement('plant-item')
 export class PlantItem extends LitElement {
   static styles = [
@@ -47,15 +48,18 @@ export class PlantItem extends LitElement {
       }
       .species .sci { font-style: italic; }
       .last { color: var(--text-sub); font-size: 0.74rem; margin-top: 1px; }
-      .right {
-        display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
+      .act {
         flex-shrink: 0;
+        width: 42px; height: 42px; border-radius: 13px;
+        display: grid; place-items: center;
+        background: var(--green-soft); color: var(--green);
       }
-      .btn-soft { padding: 7px 12px; font-size: 0.82rem; }
+      .act.due { background: var(--green); color: #fff; }
     `,
   ];
 
   @property({ attribute: false }) plant!: PlantSummary;
+  @property() kind: 'water' | 'repot' = 'water';
   @property({ type: Boolean, reflect: true }) leaving = false;
 
   private emit(name: string, detail?: unknown): void {
@@ -67,22 +71,24 @@ export class PlantItem extends LitElement {
     () => this.emit('edit'),
   );
 
-  private waterGesture = new Press(
-    () => this.emit('water', {}),
+  private actGesture = new Press(
+    () => this.emit('complete', { kind: this.kind }),
     () => {
       void pickBackfillDate().then((date) => {
-        if (date) this.emit('water', { date });
+        if (date) this.emit('complete', { kind: this.kind, date });
       });
     },
   );
 
   render(): TemplateResult {
     const p = this.plant;
-    const badge = waterBadge(p);
-    const last = fmtRelDays(p.last_watered_at, today());
+    const base = today();
+    const water = fmtRel(p.last_watered_at, base);
+    const repot = fmtRel(p.last_repotted_at, base);
     const sci = abbrevSci(p.species_name_en);
     // 이름이 별칭 그대로면 별칭 중복 표시를 생략
     const alias = p.species_name && p.species_name !== p.name ? p.species_name : null;
+    const dday = this.kind === 'water' ? p.water_dday : p.repot_dday;
     return html`
       <div
         class="row"
@@ -108,23 +114,19 @@ export class PlantItem extends LitElement {
             : p.species_name
               ? nothing
               : html`<div class="species">종류 미지정</div>`}
-          <div class="last">💧 ${last ? `${last}에 줌` : '기록 없음'}</div>
+          <div class="last">
+            💧 ${water ?? '기록 없음'}${repot ? ` · 🪴 ${repot}` : ''}
+          </div>
         </div>
-        <div
-          class="right"
-          @click=${(e: Event): void => e.stopPropagation()}
-          @pointerdown=${(e: Event): void => e.stopPropagation()}
-        >
-          ${badge ? html`<span class="badge ${badge.cls}">${badge.label}</span>` : nothing}
-          <button
-            class="btn-soft"
-            @pointerdown=${this.waterGesture.down}
-            @pointermove=${this.waterGesture.move}
-            @pointerup=${this.waterGesture.up}
-            @pointercancel=${this.waterGesture.up}
-            @click=${this.waterGesture.click}
-          >물주기</button>
-        </div>
+        <button
+          class="act ${dday !== null && dday <= 0 ? 'due' : ''}"
+          aria-label=${this.kind === 'water' ? '물주기 완료' : '분갈이 완료'}
+          @pointerdown=${(e: Event): void => { e.stopPropagation(); this.actGesture.down(e as PointerEvent); }}
+          @pointermove=${this.actGesture.move}
+          @pointerup=${this.actGesture.up}
+          @pointercancel=${this.actGesture.up}
+          @click=${(e: Event): void => { e.stopPropagation(); this.actGesture.click(e); }}
+        >${icon(this.kind === 'water' ? 'droplet' : 'sprout', 21)}</button>
       </div>
     `;
   }

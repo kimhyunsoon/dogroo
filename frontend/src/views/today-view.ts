@@ -3,12 +3,15 @@ import { customElement, state } from 'lit/decorators.js';
 import { tokens, ui } from '../style.js';
 import { api } from '../api.js';
 import { toast } from '../ui.js';
+import { cachedPlants, loadPlants, refreshPlants } from '../store.js';
 import type { PlantSummary } from '../types.js';
 import type { PlantItem } from '../components/plant-item.js';
 import type { PlantFormSheet } from '../sheets/plant-form-sheet.js';
 import '../components/plant-item.js';
 import '../sheets/plant-form-sheet.js';
 import { setupPushOnce } from '../push.js';
+
+type Kind = 'water' | 'repot';
 
 // 그룹명 기준 정렬 (기타류는 마지막)
 export function sortGroups(groups: string[]): string[] {
@@ -29,7 +32,7 @@ export function groupPlants(plants: PlantSummary[]): Map<string, PlantSummary[]>
   return map;
 }
 
-// 오늘 탭 - 오늘 물줄 화분만, 그룹별 섹션
+// 오늘 탭 - 오늘 물줄 화분(그룹별 섹션) + 오늘 분갈이 대상 섹션
 @customElement('today-view')
 export class TodayView extends LitElement {
   static styles = [
@@ -50,6 +53,7 @@ export class TodayView extends LitElement {
         font-size: 0.8rem; font-weight: 700; color: var(--green);
       }
       .group-head .count { color: var(--text-sub); font-weight: 400; }
+      .group-head.repot { color: var(--warn); }
       .empty {
         text-align: center; color: var(--text-sub);
         padding: 70px 16px;
@@ -65,10 +69,15 @@ export class TodayView extends LitElement {
 
   @state() private plants: PlantSummary[] = [];
   @state() private loaded = false;
-  @state() private leaving = new Set<number>();
+  @state() private leaving = new Set<string>(); // `${kind}:${id}` - 물·분갈이 동시 대상 대응
 
   connectedCallback(): void {
     super.connectedCallback();
+    const cached = cachedPlants();
+    if (cached) {
+      this.plants = cached;
+      this.loaded = true;
+    }
     void this.load();
     void setupPushOnce();
     document.addEventListener('visibilitychange', this.onVisible);
@@ -84,35 +93,44 @@ export class TodayView extends LitElement {
   };
 
   private async load(): Promise<void> {
-    this.plants = await api<PlantSummary[]>('/api/plants');
+    this.plants = await loadPlants();
     this.loaded = true;
   }
 
-  private get due(): PlantSummary[] {
+  private get dueWater(): PlantSummary[] {
     return this.plants
       .filter((p) => !p.archived_at && p.water_dday !== null && p.water_dday <= 0)
       .sort((a, b) => (a.water_dday ?? 0) - (b.water_dday ?? 0));
   }
 
-  private async onWater(e: Event): Promise<void> {
+  private get dueRepot(): PlantSummary[] {
+    return this.plants
+      .filter((p) => !p.archived_at && p.repot_dday !== null && p.repot_dday <= 0)
+      .sort((a, b) => (a.repot_dday ?? 0) - (b.repot_dday ?? 0));
+  }
+
+  private async onComplete(e: Event): Promise<void> {
     const item = e.target as PlantItem;
     const plant = item.plant;
-    const date = (e as CustomEvent<{ date?: string }>).detail?.date;
-    const res = await api<{ id: number }>(`/api/plants/${plant.id}/waterings`, {
-      method: 'POST',
-      body: JSON.stringify(date ? { watered_at: date } : {}),
-    });
+    const { kind, date } = (e as CustomEvent<{ kind: Kind; date?: string }>).detail;
+    const isWater = kind === 'water';
+    const url = `/api/plants/${plant.id}/${isWater ? 'waterings' : 'repottings'}`;
+    const body = date ? (isWater ? { watered_at: date } : { repotted_at: date }) : {};
+    const res = await api<{ id: number }>(url, { method: 'POST', body: JSON.stringify(body) });
     // 항목이 접히는 애니메이션 후 목록 갱신
-    this.leaving = new Set([...this.leaving, plant.id]);
-    toast(`${plant.name} 물주기 완료`, {
+    const leavingKey = `${kind}:${plant.id}`;
+    this.leaving = new Set([...this.leaving, leavingKey]);
+    toast(`${plant.name} ${isWater ? '물주기' : '분갈이'} 완료`, {
       actionLabel: '취소',
       onAction: () => {
-        void api(`/api/waterings/${res.id}`, { method: 'DELETE' }).then(() => this.load());
+        void api(`/api/${isWater ? 'waterings' : 'repottings'}/${res.id}`, { method: 'DELETE' })
+          .then(() => this.load());
       },
     });
     setTimeout(() => {
       void this.load().then(() => {
-        this.leaving = new Set([...this.leaving].filter((id) => id !== plant.id));
+        this.leaving = new Set([...this.leaving].filter((key) => key !== leavingKey));
+        void refreshPlants();
       });
     }, 320);
   }
@@ -121,6 +139,19 @@ export class TodayView extends LitElement {
     const plant = (e.target as PlantItem).plant;
     const form = this.renderRoot.querySelector('plant-form-sheet') as PlantFormSheet;
     void form.show(plant.id);
+  }
+
+  private renderItem(p: PlantSummary, kind: Kind): TemplateResult {
+    return html`
+      <plant-item
+        .plant=${p}
+        kind=${kind}
+        ?leaving=${this.leaving.has(`${kind}:${p.id}`)}
+        @open=${(): void => { location.hash = `#/plants/${p.id}`; }}
+        @edit=${this.openEdit}
+        @complete=${this.onComplete}
+      ></plant-item>
+    `;
   }
 
   private renderSkeleton(): TemplateResult {
@@ -138,42 +169,45 @@ export class TodayView extends LitElement {
   }
 
   render(): TemplateResult {
-    const due = this.due;
-    const groups = groupPlants(due);
+    const water = this.dueWater;
+    const repot = this.dueRepot;
+    const groups = groupPlants(water);
     const names = sortGroups([...groups.keys()]);
     return html`
       <div class="top">
-        <h1>오늘 물주기</h1>
-        <div class="sub">${this.loaded ? `${due.length}개 화분이 물을 기다려요` : ''}</div>
+        <h1>오늘 할 일</h1>
+        <div class="sub">
+          ${this.loaded
+            ? `물주기 ${water.length}${repot.length > 0 ? ` · 분갈이 ${repot.length}` : ''}`
+            : ''}
+        </div>
       </div>
 
       ${!this.loaded
         ? this.renderSkeleton()
-        : due.length === 0
+        : water.length === 0 && repot.length === 0
           ? html`
               <div class="empty">
                 <div class="big">🌿</div>
-                오늘은 물 줄 화분이 없어요
+                오늘은 할 일이 없어요
               </div>
             `
-          : names.map(
-              (g) => html`
-                <div class="group-head">${g} <span class="count">${groups.get(g)!.length}</span></div>
-                ${groups.get(g)!.map(
-                  (p) => html`
-                    <plant-item
-                      .plant=${p}
-                      ?leaving=${this.leaving.has(p.id)}
-                      @open=${(): void => { location.hash = `#/plants/${p.id}`; }}
-                      @edit=${this.openEdit}
-                      @water=${this.onWater}
-                    ></plant-item>
-                  `,
-                )}
-              `,
-            )}
+          : html`
+              ${names.map(
+                (g) => html`
+                  <div class="group-head">${g} <span class="count">${groups.get(g)!.length}</span></div>
+                  ${groups.get(g)!.map((p) => this.renderItem(p, 'water'))}
+                `,
+              )}
+              ${repot.length > 0
+                ? html`
+                    <div class="group-head repot">🪴 분갈이 <span class="count">${repot.length}</span></div>
+                    ${repot.map((p) => this.renderItem(p, 'repot'))}
+                  `
+                : ''}
+            `}
 
-      <plant-form-sheet @saved=${(): void => void this.load()}></plant-form-sheet>
+      <plant-form-sheet @saved=${(): void => { void this.load().then(() => refreshPlants()); }}></plant-form-sheet>
     `;
   }
 }

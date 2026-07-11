@@ -4,7 +4,8 @@ import { tokens, ui } from '../style.js';
 import { api, today, addDays } from '../api.js';
 import { toast, uiConfirm, Press } from '../ui.js';
 import { icon } from '../icons.js';
-import { waterBadge, repotBadge, fmtDate, fmtDateY, fmtTogether, POT_LABEL } from '../fmt.js';
+import { fmtDate, fmtRel, fmtTogether, POT_LABEL } from '../fmt.js';
+import { refreshPlants } from '../store.js';
 import type { PlantDetail } from '../types.js';
 import '../sheets/plant-form-sheet.js';
 import '../sheets/photo-lightbox.js';
@@ -123,11 +124,13 @@ export class PlantDetailView extends LitElement {
     const body = date ? (isWater ? { watered_at: date } : { repotted_at: date }) : {};
     const res = await api<{ id: number }>(url, { method: 'POST', body: JSON.stringify(body) });
     await this.load();
+    void refreshPlants(); // 목록 캐시 동기화 (back으로 복귀 시 최신)
     toast(`${isWater ? '물주기' : '분갈이'} 완료`, {
       actionLabel: '취소',
       onAction: () => {
         void api(`/api/${isWater ? 'waterings' : 'repottings'}/${res.id}`, { method: 'DELETE' })
-          .then(() => this.load());
+          .then(() => this.load())
+          .then(() => refreshPlants());
       },
     });
   }
@@ -152,6 +155,7 @@ export class PlantDetailView extends LitElement {
     if (!ok) return;
     await api(`/api/${kind === 'water' ? 'waterings' : 'repottings'}/${id}`, { method: 'DELETE' });
     await this.load();
+    void refreshPlants();
   }
 
   // 물주기·분갈이 기록을 시간순으로 병합
@@ -182,19 +186,15 @@ export class PlantDetailView extends LitElement {
     else location.hash = '#/plants';
   }
 
-  // 주기·마지막·다음을 한 줄로
+  // 주기와 마지막 완료 시점을 한 줄로 (D-day·예정일 표기는 쓰지 않는다)
   private cycleLine(kind: 'water' | 'repot'): string {
     const p = this.plant!;
     if (kind === 'water') {
-      const last = p.last_watered_at ? fmtDate(p.last_watered_at) : null;
-      return last
-        ? `${p.effective_water_days}일마다 · 마지막 ${last} · 다음 ${fmtDate(p.next_water_at)}`
-        : `${p.effective_water_days}일마다 · 아직 기록이 없어요`;
+      const last = fmtRel(p.last_watered_at, today());
+      return `${p.effective_water_days}일마다 · 💧 ${last ?? '기록 없음'}`;
     }
-    const last = p.last_repotted_at ? fmtDateY(p.last_repotted_at) : null;
-    return last
-      ? `${p.effective_repot_months}개월마다 · 마지막 ${last} · 다음 ${fmtDateY(p.next_repot_at)}`
-      : `${p.effective_repot_months}개월마다 · 아직 기록이 없어요`;
+    const last = fmtRel(p.last_repotted_at, today());
+    return `${p.effective_repot_months}개월마다 · 🪴 ${last ?? '기록 없음'}`;
   }
 
   // 물주기·분갈이 히트맵 (최근 20주, 한 칸 = 하루, 월·요일 라벨 포함)
@@ -268,8 +268,6 @@ export class PlantDetailView extends LitElement {
   render(): TemplateResult {
     const p = this.plant;
     if (!p) return html`<div class="top"><button class="back" @click=${this.goBack}>${icon('chevron-left', 24)}</button></div>`;
-    const water = waterBadge(p);
-    const repot = repotBadge(p);
     const waterGesture = this.pressFor('water');
     const repotGesture = this.pressFor('repot');
     return html`
@@ -310,7 +308,7 @@ export class PlantDetailView extends LitElement {
       ${p.memo ? html`<p class="sub memo">${p.memo}</p>` : nothing}
 
       <div class="block card">
-        <h2>💧 물주기 <span class="grow"></span> ${water ? html`<span class="badge ${water.cls}">${water.label}</span>` : nothing}</h2>
+        <h2>💧 물주기</h2>
         <div class="cycle">${this.cycleLine('water')}</div>
         <button
           class="btn-primary doit"
@@ -323,7 +321,7 @@ export class PlantDetailView extends LitElement {
       </div>
 
       <div class="block card">
-        <h2>🪴 분갈이 <span class="grow"></span> ${repot ? html`<span class="badge ${repot.cls}">${repot.label}</span>` : nothing}</h2>
+        <h2>🪴 분갈이</h2>
         <div class="cycle">${this.cycleLine('repot')}</div>
         <button
           class="btn-primary doit"
@@ -364,7 +362,7 @@ export class PlantDetailView extends LitElement {
             `}
       </div>
 
-      <plant-form-sheet @saved=${(): void => void this.load()}></plant-form-sheet>
+      <plant-form-sheet @saved=${(): void => { void this.load().then(() => refreshPlants()); }}></plant-form-sheet>
       <photo-lightbox></photo-lightbox>
     `;
   }

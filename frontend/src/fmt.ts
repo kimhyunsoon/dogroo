@@ -1,45 +1,28 @@
 import type { PlantSummary } from './types.js';
 
-export interface Badge {
-  label: string;
-  cls: 'over' | 'today' | 'ok' | 'none';
-}
-
-function ddayBadge(dday: number | null, hasInterval: boolean): Badge | null {
-  if (dday === null) return hasInterval ? { label: '기록 없음', cls: 'none' } : null;
-  if (dday < 0) return { label: `${-dday}일 지남`, cls: 'over' };
-  if (dday === 0) return { label: '오늘', cls: 'today' };
-  return { label: `D-${dday}`, cls: 'ok' };
-}
-
-export function waterBadge(p: PlantSummary): Badge | null {
-  return ddayBadge(p.water_dday, p.effective_water_days !== null);
-}
-
-export function repotBadge(p: PlantSummary): Badge | null {
-  // 분갈이는 주기·기준일이 있을 때만 표시 (물주기 대비 부차 정보)
-  return p.repot_dday === null ? null : ddayBadge(p.repot_dday, true);
-}
-
 // '2026-06-28' → '6/28'
 export function fmtDate(date: string | null): string {
   if (!date) return '-';
   return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
 }
 
-// '2026-06-28' → '26.6.28' (연 단위 주기용)
-export function fmtDateY(date: string | null): string {
-  if (!date) return '-';
-  return `${date.slice(2, 4)}.${Number(date.slice(5, 7))}.${Number(date.slice(8, 10))}`;
-}
-
-// 오늘 기준 상대 일수: '오늘' / '어제' / 'n일 전'
-export function fmtRelDays(date: string | null, base: string): string | null {
+// 오늘 기준 상대 시간: 오늘/어제/n일 전(1개월 미만) → n개월 전 → n년 n개월 전
+export function fmtRel(date: string | null, base: string): string | null {
   if (!date) return null;
-  const days = Math.round((Date.parse(`${base}T00:00:00`) - Date.parse(`${date.slice(0, 10)}T00:00:00`)) / 86400000);
+  const d = date.slice(0, 10);
+  const days = Math.round((Date.parse(`${base}T00:00:00`) - Date.parse(`${d}T00:00:00`)) / 86400000);
   if (days <= 0) return '오늘';
   if (days === 1) return '어제';
-  return `${days}일 전`;
+  // 개월 계산은 fmtTogether와 같은 달력 기준
+  const s = new Date(`${d}T00:00:00`);
+  const b = new Date(`${base}T00:00:00`);
+  let months = (b.getFullYear() - s.getFullYear()) * 12 + (b.getMonth() - s.getMonth());
+  if (b.getDate() < s.getDate()) months--;
+  if (months < 1) return `${days}일 전`;
+  const years = Math.floor(months / 12);
+  const rem = months % 12;
+  if (years === 0) return `${months}개월 전`;
+  return rem === 0 ? `${years}년 전` : `${years}년 ${rem}개월 전`;
 }
 
 // 학명 축약: 'Monstera deliciosa' → 'M. deliciosa' (한 단어면 그대로)

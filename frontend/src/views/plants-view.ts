@@ -4,6 +4,8 @@ import { tokens, ui } from '../style.js';
 import { api } from '../api.js';
 import { toast } from '../ui.js';
 import { icon } from '../icons.js';
+import { parseHash, replaceHashQuery } from '../router.js';
+import { cachedPlants, loadPlants, refreshPlants } from '../store.js';
 import type { PlantSummary } from '../types.js';
 import type { PlantItem } from '../components/plant-item.js';
 import type { PlantFormSheet } from '../sheets/plant-form-sheet.js';
@@ -11,9 +13,28 @@ import '../components/plant-item.js';
 import '../sheets/plant-form-sheet.js';
 import { groupPlants, sortGroups } from './today-view.js';
 
-type SortKey = 'group' | 'water' | 'name';
+type ViewMode = 'group' | 'list';
+type SortKey = 'name' | 'water' | 'together' | 'repot';
+type Dir = 'asc' | 'desc';
 
-// 식물 탭 - 전체 목록 (그룹/물주기/이름 정렬, 검색, 보관, 등록)
+const STATE_KEY = 'groo:plants-state';
+const SORTS: { key: SortKey; label: string; defaultDir: Dir }[] = [
+  { key: 'name', label: '이름', defaultDir: 'asc' },
+  { key: 'water', label: '물 준 지', defaultDir: 'asc' }, // asc = 오래된 순
+  { key: 'together', label: '함께한 지', defaultDir: 'asc' }, // asc = 오래 키운 순
+  { key: 'repot', label: '분갈이', defaultDir: 'desc' }, // desc = 최근 순
+];
+
+// null(기록 없음)은 방향과 무관하게 항상 마지막
+function cmpDate(a: string | null, b: string | null, dir: Dir): number {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return dir === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
+}
+
+// 식물 탭 - 전체 목록 (그룹/목록 모드, 목록은 단독 정렬 4종 + 방향 토글, 검색, 보관, 등록)
+// 모드·정렬은 해시 쿼리와 localStorage에 기록되어 상세→뒤로가기·재접속에도 보존된다
 @customElement('plants-view')
 export class PlantsView extends LitElement {
   static styles = [
@@ -35,14 +56,23 @@ export class PlantsView extends LitElement {
       }
       .title-row button.on { color: var(--green); }
       .search-row { padding-top: 8px; }
-      .sort-row { display: flex; align-items: center; gap: 8px; padding-top: 8px; }
-      .sort-row .segmented { flex: 1; }
+      .mode-row { display: flex; align-items: center; gap: 8px; padding-top: 8px; }
+      .mode-row .segmented { flex: 1; }
       .archived-toggle {
         display: flex; align-items: center; gap: 3px;
         background: none; color: var(--text-sub);
         font-size: 0.76rem; padding: 5px 6px;
       }
       .archived-toggle.on { color: var(--green); font-weight: 700; }
+      .sort-row { display: flex; gap: 6px; padding-top: 8px; overflow-x: auto; scrollbar-width: none; }
+      .sort-row::-webkit-scrollbar { display: none; }
+      .sort-chip {
+        display: flex; align-items: center; gap: 3px;
+        padding: 6px 11px; border-radius: 999px;
+        background: var(--green-soft); color: var(--text-sub);
+        font-size: 0.78rem; white-space: nowrap; flex-shrink: 0;
+      }
+      .sort-chip.on { background: var(--green); color: #fff; font-weight: 700; }
       .group-head {
         display: flex; align-items: baseline; gap: 6px;
         margin: 14px 16px 2px;
@@ -71,7 +101,9 @@ export class PlantsView extends LitElement {
   @state() private loaded = false;
   @state() private q = '';
   @state() private searchOpen = false;
-  @state() private sort: SortKey = 'group';
+  @state() private view: ViewMode = 'group';
+  @state() private sort: SortKey = 'name';
+  @state() private dir: Dir = 'asc';
   @state() private includeArchived = false;
   @state() private pulling = false;
 
@@ -79,12 +111,69 @@ export class PlantsView extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.restoreState();
+    const cached = cachedPlants(this.query);
+    if (cached) {
+      this.plants = cached;
+      this.loaded = true;
+    }
     void this.load();
   }
 
+  private get query(): string {
+    return this.includeArchived ? '?archived=1' : '';
+  }
+
+  // 복원 우선순위: 해시 쿼리 > localStorage > 기본(그룹)
+  private restoreState(): void {
+    const { params } = parseHash(location.hash);
+    let state: { view?: string; sort?: string; dir?: string } = {};
+    if (params.has('view')) {
+      state = { view: params.get('view')!, sort: params.get('sort') ?? '', dir: params.get('dir') ?? '' };
+    } else {
+      try {
+        state = JSON.parse(localStorage.getItem(STATE_KEY) ?? '{}') as typeof state;
+      } catch {
+        state = {};
+      }
+    }
+    if (state.view === 'list') this.view = 'list';
+    const sort = SORTS.find((s) => s.key === state.sort);
+    if (sort) {
+      this.sort = sort.key;
+      this.dir = state.dir === 'desc' ? 'desc' : state.dir === 'asc' ? 'asc' : sort.defaultDir;
+    }
+    this.syncState();
+  }
+
+  // 현재 상태를 해시 쿼리(replaceState)와 localStorage에 반영
+  private syncState(): void {
+    const isList = this.view === 'list';
+    replaceHashQuery('#/plants', {
+      view: isList ? 'list' : null,
+      sort: isList ? this.sort : null,
+      dir: isList ? this.dir : null,
+    });
+    localStorage.setItem(STATE_KEY, JSON.stringify({ view: this.view, sort: this.sort, dir: this.dir }));
+  }
+
+  private setView(view: ViewMode): void {
+    this.view = view;
+    this.syncState();
+  }
+
+  private setSort(key: SortKey): void {
+    if (this.sort === key) {
+      this.dir = this.dir === 'asc' ? 'desc' : 'asc'; // 활성 칩 재탭 = 방향 반전
+    } else {
+      this.sort = key;
+      this.dir = SORTS.find((s) => s.key === key)!.defaultDir;
+    }
+    this.syncState();
+  }
+
   private async load(): Promise<void> {
-    const query = this.includeArchived ? '?archived=1' : '';
-    this.plants = await api<PlantSummary[]>(`/api/plants${query}`);
+    this.plants = await loadPlants(this.query);
     this.loaded = true;
   }
 
@@ -99,18 +188,21 @@ export class PlantsView extends LitElement {
     );
   }
 
-  private async onWater(e: Event): Promise<void> {
+  private async onComplete(e: Event): Promise<void> {
     const plant = (e.target as PlantItem).plant;
-    const date = (e as CustomEvent<{ date?: string }>).detail?.date;
-    const res = await api<{ id: number }>(`/api/plants/${plant.id}/waterings`, {
-      method: 'POST',
-      body: JSON.stringify(date ? { watered_at: date } : {}),
-    });
+    const { kind, date } = (e as CustomEvent<{ kind: 'water' | 'repot'; date?: string }>).detail;
+    const isWater = kind === 'water';
+    const url = `/api/plants/${plant.id}/${isWater ? 'waterings' : 'repottings'}`;
+    const body = date ? (isWater ? { watered_at: date } : { repotted_at: date }) : {};
+    const res = await api<{ id: number }>(url, { method: 'POST', body: JSON.stringify(body) });
     await this.load();
-    toast(`${plant.name} 물주기 완료`, {
+    void refreshPlants();
+    toast(`${plant.name} ${isWater ? '물주기' : '분갈이'} 완료`, {
       actionLabel: '취소',
       onAction: () => {
-        void api(`/api/waterings/${res.id}`, { method: 'DELETE' }).then(() => this.load());
+        void api(`/api/${isWater ? 'waterings' : 'repottings'}/${res.id}`, { method: 'DELETE' })
+          .then(() => this.load())
+          .then(() => refreshPlants());
       },
     });
   }
@@ -142,7 +234,7 @@ export class PlantsView extends LitElement {
         .plant=${p}
         @open=${(): void => { location.hash = `#/plants/${p.id}`; }}
         @edit=${(e: Event): void => this.openForm((e.target as PlantItem).plant.id)}
-        @water=${this.onWater}
+        @complete=${this.onComplete}
       ></plant-item>
     `;
   }
@@ -152,9 +244,9 @@ export class PlantsView extends LitElement {
     if (visible.length === 0) {
       return html`<div class="empty">표시할 식물이 없어요 🌱</div>`;
     }
-    if (this.sort === 'group') {
+    if (this.view === 'group') {
       const groups = groupPlants(
-        [...visible].sort((a, b) => (a.water_dday ?? 9999) - (b.water_dday ?? 9999)),
+        [...visible].sort((a, b) => cmpDate(a.last_watered_at, b.last_watered_at, 'asc')),
       );
       const names = sortGroups([...groups.keys()]);
       return html`${names.map(
@@ -164,10 +256,18 @@ export class PlantsView extends LitElement {
         `,
       )}`;
     }
-    const sorted =
-      this.sort === 'water'
-        ? [...visible].sort((a, b) => (a.water_dday ?? 9999) - (b.water_dday ?? 9999))
-        : [...visible].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    const dir = this.dir;
+    const sorted = [...visible].sort((a, b) => {
+      switch (this.sort) {
+        case 'water': return cmpDate(a.last_watered_at, b.last_watered_at, dir);
+        case 'together': return cmpDate(a.started_at, b.started_at, dir);
+        case 'repot': return cmpDate(a.last_repotted_at, b.last_repotted_at, dir);
+        default: {
+          const cmp = a.name.localeCompare(b.name, 'ko');
+          return dir === 'asc' ? cmp : -cmp;
+        }
+      }
+    });
     return html`${sorted.map((p) => this.renderItem(p))}`;
   }
 
@@ -212,15 +312,10 @@ export class PlantsView extends LitElement {
                 </div>
               `
             : nothing}
-          <div class="sort-row">
+          <div class="mode-row">
             <div class="segmented">
-              ${([['group', '그룹'], ['water', '물주기'], ['name', '이름']] as [SortKey, string][]).map(
-                ([key, label]) => html`
-                  <button class=${this.sort === key ? 'on' : ''} @click=${(): void => { this.sort = key; }}>
-                    ${label}
-                  </button>
-                `,
-              )}
+              <button class=${this.view === 'group' ? 'on' : ''} @click=${(): void => this.setView('group')}>그룹</button>
+              <button class=${this.view === 'list' ? 'on' : ''} @click=${(): void => this.setView('list')}>목록</button>
             </div>
             <button
               class="archived-toggle ${this.includeArchived ? 'on' : ''}"
@@ -230,13 +325,27 @@ export class PlantsView extends LitElement {
               }}
             >${icon('archive', 13)} 보관</button>
           </div>
+          ${this.view === 'list'
+            ? html`
+                <div class="sort-row">
+                  ${SORTS.map(
+                    (s) => html`
+                      <button class="sort-chip ${this.sort === s.key ? 'on' : ''}" @click=${(): void => this.setSort(s.key)}>
+                        ${s.label}
+                        ${this.sort === s.key ? icon(this.dir === 'asc' ? 'arrow-up' : 'arrow-down', 12) : nothing}
+                      </button>
+                    `,
+                  )}
+                </div>
+              `
+            : nothing}
         </div>
         <div class="ptr ${this.pulling ? 'show' : ''}">놓으면 새로고침</div>
 
         ${this.loaded ? this.renderList() : this.renderSkeleton()}
 
         <button class="fab" aria-label="식물 추가" @click=${(): void => this.openForm()}>${icon('plus', 26)}</button>
-        <plant-form-sheet @saved=${(): void => void this.load()}></plant-form-sheet>
+        <plant-form-sheet @saved=${(): void => { void this.load().then(() => refreshPlants()); }}></plant-form-sheet>
       </div>
     `;
   }

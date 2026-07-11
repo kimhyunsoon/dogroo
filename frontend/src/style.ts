@@ -64,18 +64,6 @@ export const ui = css`
     border-radius: 14px;
     padding: 14px 16px;
   }
-  .badge {
-    display: inline-block;
-    font-size: 0.76rem;
-    font-weight: 700;
-    padding: 2px 9px;
-    border-radius: 999px;
-    white-space: nowrap;
-  }
-  .badge.over { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
-  .badge.today { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
-  .badge.ok { background: var(--green-soft); color: var(--green); }
-  .badge.none { background: var(--border); color: var(--text-sub); }
   .sub {
     color: var(--text-sub);
     font-size: 0.85rem;

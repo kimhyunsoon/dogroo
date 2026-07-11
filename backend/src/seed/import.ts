@@ -55,6 +55,7 @@ function toIntOrNull(value: string): number | null {
 interface Counts {
   species: number;
   plants: number;
+  archived: number;
   waterings: number;
   repottings: number;
   photos: number;
@@ -72,9 +73,11 @@ export function runSeedImport(log: (msg: string) => void = console.log): void {
   const ledgerHas = db.prepare('SELECT 1 FROM import_ledger WHERE source = ? AND source_id = ?');
   const ledgerGet = db.prepare('SELECT local_id FROM import_ledger WHERE source = ? AND source_id = ?');
   const ledgerPut = db.prepare('INSERT INTO import_ledger (source, source_id, local_id) VALUES (?, ?, ?)');
-  const counts: Counts = { species: 0, plants: 0, waterings: 0, repottings: 0, photos: 0 };
+  const counts: Counts = { species: 0, plants: 0, archived: 0, waterings: 0, repottings: 0, photos: 0 };
 
   const plants = parseCsv(readFileSync(join(seedDir, 'user-plants.csv'), 'utf-8'));
+  const logs = parseCsv(readFileSync(join(seedDir, 'care-logs.csv'), 'utf-8'));
+  const notes = parseCsv(readFileSync(join(seedDir, 'care-notes.csv'), 'utf-8'));
   const wiki = parseCsv(readFileSync(join(seedDir, 'species-wiki.csv'), 'utf-8'));
   const wikiById = new Map(wiki.map((w) => [w['ID'] ?? '', w]));
 
@@ -214,8 +217,53 @@ export function runSeedImport(log: (msg: string) => void = console.log): void {
       counts.plants++;
     }
 
-    // 3) 케어 로그 - 완료된 물주기/분갈이만. 백업에 없는 식물(보낸 아이) 소속은 제외
-    const logs = parseCsv(readFileSync(join(seedDir, 'care-logs.csv'), 'utf-8'));
+    // 2-b) 그루에서 삭제(보낸)했던 식물 - 백업 목록엔 없지만 로그·노트에 흔적이 남아있다.
+    //      "새 식물을 추가했어요" 노트로 이름을 복원할 수 있는 것만 '보관' 상태로 되살린다.
+    //      plantIdByOldId에 매핑이 더해지므로 3)에서 이들의 물주기·분갈이 로그도 함께 들어온다.
+    const aliveOldIds = new Set(plants.map((p) => p['ID'] ?? ''));
+    const deletedName = new Map<string, string>(); // 옛 식물ID → 복원한 이름
+    const deletedSpan = new Map<string, { first: string; last: string }>(); // 활동 기간
+    const track = (oldId: string, date: string | null): void => {
+      if (!oldId || aliveOldIds.has(oldId) || !date) return;
+      const span = deletedSpan.get(oldId);
+      if (!span) deletedSpan.set(oldId, { first: date, last: date });
+      else {
+        if (date < span.first) span.first = date;
+        if (date > span.last) span.last = date;
+      }
+    };
+    for (const n of notes) {
+      const oldId = n['내식물ID'] ?? '';
+      if (!oldId || aliveOldIds.has(oldId)) continue;
+      track(oldId, toDate(n['기록일시'] ?? ''));
+      const added = (n['내용'] ?? '').match(/^새 식물을 추가했어요! 🪴 (.+)$/);
+      // 이름에 별칭이 쉼표로 병기된 경우("카랑코에, 카란코에") 첫 항목만
+      if (added) deletedName.set(oldId, added[1]!.split(',')[0]!.trim());
+    }
+    for (const l of logs) {
+      track(l['내식물ID'] ?? '', toDate(l['완료일시'] ?? ''));
+    }
+    for (const [oldId, name] of deletedName) {
+      if (!name || ledgerHas.get('plant', oldId)) continue;
+      const span = deletedSpan.get(oldId);
+      if (!span) continue;
+      // 종 매칭: 풀·기등록 종에서 이름으로 (실패 시 미지정)
+      const species = db.prepare('SELECT id FROM species WHERE name = ?').get(name) as
+        | { id: number }
+        | undefined;
+      const result = db
+        .prepare(
+          `INSERT INTO plants (name, species_id, started_at, pot_size, archived_at)
+           VALUES (?, ?, ?, 'M', ?)`,
+        )
+        .run(name, species?.id ?? null, span.first, `${span.last} 00:00:00`);
+      const id = Number(result.lastInsertRowid);
+      ledgerPut.run('plant', oldId, id);
+      plantIdByOldId.set(oldId, id);
+      counts.archived++;
+    }
+
+    // 3) 케어 로그 - 완료된 물주기/분갈이만. 원본에도 흔적이 없는 식물 소속은 제외
     for (const l of logs) {
       const plantId = plantIdByOldId.get(l['내식물ID'] ?? '');
       const doneAt = toDate(l['완료일시'] ?? '');
@@ -240,7 +288,6 @@ export function runSeedImport(log: (msg: string) => void = console.log): void {
     }
 
     // 4) 사진 - seed/images의 파일명 규칙: <날짜>_plant-<식물ID>-<순번>.jpg / <날짜>_carenote-<노트ID>-<순번>.jpg
-    const notes = parseCsv(readFileSync(join(seedDir, 'care-notes.csv'), 'utf-8'));
     const plantIdByNoteId = new Map<string, number>();
     for (const n of notes) {
       const plantId = plantIdByOldId.get(n['내식물ID'] ?? '');
@@ -268,11 +315,12 @@ export function runSeedImport(log: (msg: string) => void = console.log): void {
   });
 
   importAll();
-  const total = counts.species + counts.plants + counts.waterings + counts.repottings + counts.photos;
+  const total =
+    counts.species + counts.plants + counts.archived + counts.waterings + counts.repottings + counts.photos;
   if (total > 0) {
     log(
-      `시드 임포트: 종 ${counts.species}, 식물 ${counts.plants}, 물주기 ${counts.waterings}, ` +
-        `분갈이 ${counts.repottings}, 사진 ${counts.photos}`,
+      `시드 임포트: 종 ${counts.species}, 식물 ${counts.plants}, 보관 복원 ${counts.archived}, ` +
+        `물주기 ${counts.waterings}, 분갈이 ${counts.repottings}, 사진 ${counts.photos}`,
     );
   }
 }

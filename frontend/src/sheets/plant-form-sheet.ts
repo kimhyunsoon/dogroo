@@ -31,6 +31,12 @@ export class PlantFormSheet extends SheetBase {
       }
       .select-btn .placeholder { color: var(--text-sub); }
       .select-btn svg { color: var(--text-sub); }
+      .date-wrap { position: relative; }
+      .date-overlay {
+        position: absolute; inset: 0;
+        width: 100%; height: 100%;
+        opacity: 0; border: none; padding: 0; margin: 0;
+      }
       .seg-row { display: flex; align-items: center; gap: 10px; }
       .seg-row .segmented { width: 132px; flex-shrink: 0; }
       .seg-row .auto-info { flex: 1; font-size: 0.88rem; color: var(--text-sub); text-align: right; }
@@ -248,16 +254,14 @@ export class PlantFormSheet extends SheetBase {
     this.requestClose();
   }
 
-  // 시작일은 버튼 전체가 캘린더 트리거 (숨긴 date input의 피커를 연다)
-  private openDatePicker(): void {
-    const input = this.renderRoot.querySelector('#date-input') as
-      | (HTMLInputElement & { showPicker?: () => void })
-      | null;
-    if (!input) return;
+  // 데스크톱은 네이티브 탭만으로 피커가 안 열리는 브라우저가 있어 보조로 showPicker 호출
+  // (iOS는 투명 오버레이 input을 직접 탭하는 것으로 충분)
+  private onDateTap(e: Event): void {
+    const input = e.target as HTMLInputElement & { showPicker?: () => void };
     try {
       input.showPicker?.();
     } catch {
-      input.click();
+      // iOS 등에서 NotAllowedError - 네이티브 동작에 맡긴다
     }
   }
 
@@ -356,20 +360,22 @@ export class PlantFormSheet extends SheetBase {
 
         <div>
           <label>키우기 시작한 날</label>
-          <button type="button" class="select-btn" @click=${(): void => this.openDatePicker()}>
-            <span>${this.startedAt}</span>
-            ${icon('calendar', 18)}
-          </button>
-          <input
-            id="date-input"
-            type="date"
-            .value=${this.startedAt}
-            style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none"
-            tabindex="-1"
-            @change=${(e: Event): void => {
-              this.startedAt = (e.target as HTMLInputElement).value || today();
-            }}
-          >
+          <div class="date-wrap">
+            <button type="button" class="select-btn" tabindex="-1">
+              <span>${this.startedAt}</span>
+              ${icon('calendar', 18)}
+            </button>
+            <!-- 버튼 위 투명 date input - 탭하면 iOS 네이티브 휠 피커가 바로 열린다 -->
+            <input
+              class="date-overlay"
+              type="date"
+              .value=${this.startedAt}
+              @click=${this.onDateTap}
+              @change=${(e: Event): void => {
+                this.startedAt = (e.target as HTMLInputElement).value || today();
+              }}
+            >
+          </div>
         </div>
 
         <div>

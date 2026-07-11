@@ -19,6 +19,9 @@ const PATHS: Record<string, TemplateResult> = {
   droplet: svg`<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>`,
   'arrow-up-down': svg`<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>`,
   calendar: svg`<path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/>`,
+  sprout: svg`<path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-3.7.3-4.9 1.4-4.9 2z"/>`,
+  'arrow-up': svg`<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>`,
+  'arrow-down': svg`<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>`,
 };
 
 /** 아이콘 렌더링. size 기본 20px, 스트로크는 currentColor */
