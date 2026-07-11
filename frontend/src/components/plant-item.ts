@@ -54,7 +54,6 @@ export class PlantItem extends LitElement {
         display: grid; place-items: center;
         background: var(--green-soft); color: var(--green);
       }
-      .act.due { background: var(--green); color: #fff; }
       /* 오늘 이미 완료 - 다시 누르고 싶지 않게 가시성을 낮춘다 (재탭 = 오늘 기록 취소) */
       .act.done { background: transparent; border: 1px dashed var(--border); color: var(--text-sub); opacity: 0.45; }
     `,
@@ -90,7 +89,6 @@ export class PlantItem extends LitElement {
     const sci = abbrevSci(p.species_name_en);
     // 이름이 별칭 그대로면 별칭 중복 표시를 생략
     const alias = p.species_name && p.species_name !== p.name ? p.species_name : null;
-    const dday = this.kind === 'water' ? p.water_dday : p.repot_dday;
     const last = this.kind === 'water' ? p.last_watered_at : p.last_repotted_at;
     const doneToday = last?.slice(0, 10) === base;
     return html`
@@ -136,7 +134,7 @@ export class PlantItem extends LitElement {
             `
           : html`
               <button
-                class="act ${dday !== null && dday <= 0 ? 'due' : ''}"
+                class="act"
                 aria-label=${this.kind === 'water' ? '물주기 완료' : '분갈이 완료'}
                 @pointerdown=${(e: Event): void => { e.stopPropagation(); this.actGesture.down(e as PointerEvent); }}
                 @pointermove=${this.actGesture.move}

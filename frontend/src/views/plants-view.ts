@@ -194,17 +194,9 @@ export class PlantsView extends LitElement {
     const isWater = kind === 'water';
     const url = `/api/plants/${plant.id}/${isWater ? 'waterings' : 'repottings'}`;
     const body = date ? (isWater ? { watered_at: date } : { repotted_at: date }) : {};
-    const res = await api<{ id: number }>(url, { method: 'POST', body: JSON.stringify(body) });
+    await api(url, { method: 'POST', body: JSON.stringify(body) });
     await this.load();
     void refreshPlants();
-    toast(`${plant.name} ${isWater ? '물주기' : '분갈이'} 완료`, {
-      actionLabel: '취소',
-      onAction: () => {
-        void api(`/api/${isWater ? 'waterings' : 'repottings'}/${res.id}`, { method: 'DELETE' })
-          .then(() => this.load())
-          .then(() => refreshPlants());
-      },
-    });
   }
 
   // 오늘 완료한 기록의 토글 취소 (흐린 체크 버튼 재탭)
@@ -215,7 +207,6 @@ export class PlantsView extends LitElement {
     await api(`/api/plants/${plant.id}/${isWater ? 'waterings' : 'repottings'}/today`, { method: 'DELETE' });
     await this.load();
     void refreshPlants();
-    toast(`${plant.name} 오늘 ${isWater ? '물주기' : '분갈이'} 기록을 취소했어요`);
   }
 
   private openForm(plantId?: number): void {
@@ -257,8 +248,9 @@ export class PlantsView extends LitElement {
       return html`<div class="empty">표시할 식물이 없어요 🌱</div>`;
     }
     if (this.view === 'group') {
+      // 그룹 안은 이름순 고정 - 물을 줘도 순서가 흔들리지 않게
       const groups = groupPlants(
-        [...visible].sort((a, b) => cmpDate(a.last_watered_at, b.last_watered_at, 'asc')),
+        [...visible].sort((a, b) => a.name.localeCompare(b.name, 'ko')),
       );
       const names = sortGroups([...groups.keys()]);
       return html`${names.map(

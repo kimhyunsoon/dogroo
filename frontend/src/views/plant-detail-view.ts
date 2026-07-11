@@ -67,6 +67,8 @@ export class PlantDetailView extends LitElement {
       .block h2 .grow { flex: 1; }
       .cycle { font-size: 0.88rem; color: var(--text-sub); }
       .doit { margin-top: 12px; }
+      /* 오늘 완료 - 목록의 흐린 체크 버튼과 같은 결 (재탭 = 취소) */
+      .doit.done { background: transparent; border: 1px dashed var(--border); color: var(--text-sub); }
       .timeline { list-style: none; padding: 0; margin: 0; }
       .timeline li {
         display: flex; align-items: center; gap: 10px;
@@ -116,23 +118,34 @@ export class PlantDetailView extends LitElement {
     }
   }
 
+  // 오늘 이미 완료했는지 (완료 버튼이 취소 토글로 바뀐다)
+  private doneToday(kind: 'water' | 'repot'): boolean {
+    const p = this.plant;
+    if (!p) return false;
+    const last = kind === 'water' ? p.last_watered_at : p.last_repotted_at;
+    return last?.slice(0, 10) === today();
+  }
+
   private async complete(kind: 'water' | 'repot', date?: string): Promise<void> {
     const p = this.plant;
     if (!p) return;
     const isWater = kind === 'water';
     const url = isWater ? `/api/plants/${p.id}/waterings` : `/api/plants/${p.id}/repottings`;
     const body = date ? (isWater ? { watered_at: date } : { repotted_at: date }) : {};
-    const res = await api<{ id: number }>(url, { method: 'POST', body: JSON.stringify(body) });
+    await api(url, { method: 'POST', body: JSON.stringify(body) });
     await this.load();
     void refreshPlants(); // 목록 캐시 동기화 (back으로 복귀 시 최신)
-    toast(`${isWater ? '물주기' : '분갈이'} 완료`, {
-      actionLabel: '취소',
-      onAction: () => {
-        void api(`/api/${isWater ? 'waterings' : 'repottings'}/${res.id}`, { method: 'DELETE' })
-          .then(() => this.load())
-          .then(() => refreshPlants());
-      },
+  }
+
+  // 완료 버튼 재탭 = 오늘 기록 취소
+  private async undoToday(kind: 'water' | 'repot'): Promise<void> {
+    const p = this.plant;
+    if (!p) return;
+    await api(`/api/plants/${p.id}/${kind === 'water' ? 'waterings' : 'repottings'}/today`, {
+      method: 'DELETE',
     });
+    await this.load();
+    void refreshPlants();
   }
 
   private pressFor(kind: 'water' | 'repot'): Press {
@@ -311,28 +324,44 @@ export class PlantDetailView extends LitElement {
       <div class="block card">
         <h2>💧 물주기</h2>
         <div class="cycle">${this.cycleLine('water')}</div>
-        <button
-          class="btn-primary doit"
-          @pointerdown=${waterGesture.down}
-          @pointermove=${waterGesture.move}
-          @pointerup=${waterGesture.up}
-          @pointercancel=${waterGesture.up}
-          @click=${waterGesture.click}
-        >오늘 물줬어요</button>
+        ${this.doneToday('water')
+          ? html`
+              <button class="btn-primary doit done" @click=${(): void => void this.undoToday('water')}>
+                오늘 물주기 취소
+              </button>
+            `
+          : html`
+              <button
+                class="btn-primary doit"
+                @pointerdown=${waterGesture.down}
+                @pointermove=${waterGesture.move}
+                @pointerup=${waterGesture.up}
+                @pointercancel=${waterGesture.up}
+                @click=${waterGesture.click}
+              >오늘 물줬어요</button>
+            `}
       </div>
 
       <div class="block card">
         <h2>🪴 분갈이</h2>
         <div class="cycle">${this.cycleLine('repot')}</div>
-        <button
-          class="btn-primary doit"
-          style="background:var(--green-soft);color:var(--green)"
-          @pointerdown=${repotGesture.down}
-          @pointermove=${repotGesture.move}
-          @pointerup=${repotGesture.up}
-          @pointercancel=${repotGesture.up}
-          @click=${repotGesture.click}
-        >분갈이 했어요</button>
+        ${this.doneToday('repot')
+          ? html`
+              <button class="btn-primary doit done" @click=${(): void => void this.undoToday('repot')}>
+                오늘 분갈이 취소
+              </button>
+            `
+          : html`
+              <button
+                class="btn-primary doit"
+                style="background:var(--green-soft);color:var(--green)"
+                @pointerdown=${repotGesture.down}
+                @pointermove=${repotGesture.move}
+                @pointerup=${repotGesture.up}
+                @pointercancel=${repotGesture.up}
+                @click=${repotGesture.click}
+              >분갈이 했어요</button>
+            `}
       </div>
 
       <div class="block">
