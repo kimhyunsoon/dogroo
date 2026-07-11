@@ -103,7 +103,7 @@ export class PlantsView extends LitElement {
   @state() private searchOpen = false;
   @state() private view: ViewMode = 'group';
   @state() private sort: SortKey = 'name';
-  @state() private dir: Dir = 'asc';
+  @state() private sortDir: Dir = 'asc';
   @state() private includeArchived = false;
   @state() private pulling = false;
 
@@ -141,7 +141,7 @@ export class PlantsView extends LitElement {
     const sort = SORTS.find((s) => s.key === state.sort);
     if (sort) {
       this.sort = sort.key;
-      this.dir = state.dir === 'desc' ? 'desc' : state.dir === 'asc' ? 'asc' : sort.defaultDir;
+      this.sortDir = state.dir === 'desc' ? 'desc' : state.dir === 'asc' ? 'asc' : sort.defaultDir;
     }
     this.syncState();
   }
@@ -152,9 +152,9 @@ export class PlantsView extends LitElement {
     replaceHashQuery('#/plants', {
       view: isList ? 'list' : null,
       sort: isList ? this.sort : null,
-      dir: isList ? this.dir : null,
+      dir: isList ? this.sortDir : null,
     });
-    localStorage.setItem(STATE_KEY, JSON.stringify({ view: this.view, sort: this.sort, dir: this.dir }));
+    localStorage.setItem(STATE_KEY, JSON.stringify({ view: this.view, sort: this.sort, dir: this.sortDir }));
   }
 
   private setView(view: ViewMode): void {
@@ -164,10 +164,10 @@ export class PlantsView extends LitElement {
 
   private setSort(key: SortKey): void {
     if (this.sort === key) {
-      this.dir = this.dir === 'asc' ? 'desc' : 'asc'; // 활성 칩 재탭 = 방향 반전
+      this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc'; // 활성 칩 재탭 = 방향 반전
     } else {
       this.sort = key;
-      this.dir = SORTS.find((s) => s.key === key)!.defaultDir;
+      this.sortDir = SORTS.find((s) => s.key === key)!.defaultDir;
     }
     this.syncState();
   }
@@ -256,7 +256,7 @@ export class PlantsView extends LitElement {
         `,
       )}`;
     }
-    const dir = this.dir;
+    const dir = this.sortDir;
     const sorted = [...visible].sort((a, b) => {
       switch (this.sort) {
         case 'water': return cmpDate(a.last_watered_at, b.last_watered_at, dir);
@@ -332,7 +332,7 @@ export class PlantsView extends LitElement {
                     (s) => html`
                       <button class="sort-chip ${this.sort === s.key ? 'on' : ''}" @click=${(): void => this.setSort(s.key)}>
                         ${s.label}
-                        ${this.sort === s.key ? icon(this.dir === 'asc' ? 'arrow-up' : 'arrow-down', 12) : nothing}
+                        ${this.sort === s.key ? icon(this.sortDir === 'asc' ? 'arrow-up' : 'arrow-down', 12) : nothing}
                       </button>
                     `,
                   )}

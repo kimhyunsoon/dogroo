@@ -5,8 +5,12 @@ on:
     branches: [main]
 
 jobs:
-  deploy:
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+      deploy: ${{ steps.changes.outputs.deploy }}
     steps:
       - uses: actions/checkout@v4
 
@@ -22,13 +26,49 @@ jobs:
             deploy:
               - 'deploy/**'
 
+  # 서버 웹훅을 부르기 전에 빌드를 검증한다 - 실패하면 배포 자체가 시작되지 않음
+  build:
+    needs: changes
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: backend 빌드 검증
+        if: needs.changes.outputs.backend == 'true'
+        working-directory: backend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: frontend 빌드 검증
+        if: needs.changes.outputs.frontend == 'true'
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+  deploy:
+    needs: [changes, build]
+    runs-on: ubuntu-latest
+    # build가 스킵된 경우(deploy/만 변경)에도 실행되도록 조건 구성
+    if: always() && needs.build.result != 'failure' && needs.build.result != 'cancelled'
+    steps:
       - name: 배포 대상 구성
         id: targets
         run: |
           targets=()
-          [[ "${{ steps.changes.outputs.backend }}" == "true" ]] && targets+=('backend')
-          [[ "${{ steps.changes.outputs.frontend }}" == "true" ]] && targets+=('frontend')
-          [[ "${{ steps.changes.outputs.deploy }}" == "true" ]] && targets+=('deploy')
+          [[ "${{ needs.changes.outputs.backend }}" == "true" ]] && targets+=('backend')
+          [[ "${{ needs.changes.outputs.frontend }}" == "true" ]] && targets+=('frontend')
+          [[ "${{ needs.changes.outputs.deploy }}" == "true" ]] && targets+=('deploy')
           csv=$(IFS=,; echo "${targets[*]-}")
           echo "csv=$csv" >> "$GITHUB_OUTPUT"
           echo "배포 대상: $csv"
