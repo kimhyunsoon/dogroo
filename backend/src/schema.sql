@@ -9,8 +9,9 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS species (
   id                INTEGER PRIMARY KEY,
-  name              TEXT NOT NULL UNIQUE, -- 표기용 이름 (한글 우선, 애매하면 영문)
-  name_en           TEXT,                 -- 영문·학명 (검색용)
+  name              TEXT NOT NULL UNIQUE, -- 별칭 (한국 유통명)
+  name_en           TEXT,                 -- 학명
+  group_name        TEXT,                 -- 그룹 (물주기 동선 단위, 예: 호야)
   water_summer_days INTEGER,              -- 여름철 권장 물주기
   water_winter_days INTEGER,              -- 겨울철 권장 물주기
   repot_months      INTEGER,              -- 권장 분갈이 주기
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS plants (
   species_id            INTEGER REFERENCES species(id),
   started_at            TEXT,             -- 키우기 시작일 (ISO date)
   pot_size              TEXT CHECK (pot_size IN ('S', 'M', 'L')) DEFAULT 'M',
+  pot_type              TEXT,             -- 화분 재질: 슬릿|도자기|수경|토분|플라스틱
   water_interval_days   INTEGER,          -- 사용자 확정값 (추천은 참고)
   repot_interval_months INTEGER,
   memo                  TEXT,

@@ -107,6 +107,17 @@ export const ui = css`
     font-weight: 700;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   }
+  /* 로딩 스켈레톤 */
+  .skeleton {
+    background: linear-gradient(90deg, var(--border) 25%, color-mix(in srgb, var(--border) 40%, var(--surface)) 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite;
+    border-radius: 8px;
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
 `;
 
 // 바텀시트 공통 스타일 (Lit 시트 컴포넌트용)

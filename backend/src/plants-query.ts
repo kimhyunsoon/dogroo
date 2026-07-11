@@ -8,11 +8,14 @@ interface PlantRow {
   species_id: number | null;
   started_at: string | null;
   pot_size: PotSize;
+  pot_type: string | null;
   water_interval_days: number | null;
   repot_interval_months: number | null;
   memo: string | null;
   archived_at: string | null;
   species_name: string | null;
+  species_name_en: string | null;
+  group_name: string | null;
   water_summer_days: number | null;
   water_winter_days: number | null;
   repot_months: number | null;
@@ -33,7 +36,7 @@ export interface EnrichedPlant extends PlantRow {
 }
 
 const LIST_SQL = `
-SELECT p.*, s.name AS species_name,
+SELECT p.*, s.name AS species_name, s.name_en AS species_name_en, s.group_name,
   s.water_summer_days, s.water_winter_days, s.repot_months,
   (SELECT MAX(watered_at) FROM watering_logs w WHERE w.plant_id = p.id) AS last_watered_at,
   (SELECT MAX(repotted_at) FROM repotting_logs r WHERE r.plant_id = p.id) AS last_repotted_at,

@@ -28,7 +28,7 @@ export class PlantDetailView extends LitElement {
         padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
         position: sticky; top: 0; background: var(--bg); z-index: 5;
       }
-      .top .back { padding: 6px 8px 6px 0; color: var(--text); display: grid; place-items: center; }
+      .top .back { padding: 6px 8px 6px 0; color: var(--text); background: none; display: grid; place-items: center; }
       .top h1 { font-size: 1.15rem; margin: 0; flex: 1; }
       .top .edit { background: none; color: var(--text-sub); padding: 6px; }
       .gallery {
@@ -59,6 +59,7 @@ export class PlantDetailView extends LitElement {
       .stats > div + div { border-left: 1px solid var(--border); }
       .stats .k { font-size: 0.74rem; color: var(--text-sub); margin-bottom: 3px; }
       .stats .v { font-size: 0.88rem; font-weight: 700; word-break: keep-all; }
+      .stats .sci { font-size: 0.7rem; font-style: italic; color: var(--text-sub); font-weight: 400; }
       .memo { margin: 10px 20px 0; white-space: pre-wrap; }
       .block { margin: 12px 16px; }
       .block h2 { font-size: 0.98rem; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
@@ -123,7 +124,7 @@ export class PlantDetailView extends LitElement {
     const res = await api<{ id: number }>(url, { method: 'POST', body: JSON.stringify(body) });
     await this.load();
     toast(`${isWater ? '물주기' : '분갈이'} 완료`, {
-      actionLabel: '실행취소',
+      actionLabel: '취소',
       onAction: () => {
         void api(`/api/${isWater ? 'waterings' : 'repottings'}/${res.id}`, { method: 'DELETE' })
           .then(() => this.load());
@@ -173,6 +174,12 @@ export class PlantDetailView extends LitElement {
   private openLightbox(index: number): void {
     const box = this.renderRoot.querySelector('photo-lightbox') as PhotoLightbox;
     box.show(this.plant?.photos ?? [], index);
+  }
+
+  // 어느 탭에서 들어왔든 이전 화면으로 (직접 진입이면 식물 탭으로)
+  private goBack(): void {
+    if (history.length > 1) history.back();
+    else location.hash = '#/plants';
   }
 
   // 주기·마지막·다음을 한 줄로
@@ -260,14 +267,14 @@ export class PlantDetailView extends LitElement {
 
   render(): TemplateResult {
     const p = this.plant;
-    if (!p) return html`<div class="top"><a class="back" href="#/plants">${icon('chevron-left', 24)}</a></div>`;
+    if (!p) return html`<div class="top"><button class="back" @click=${this.goBack}>${icon('chevron-left', 24)}</button></div>`;
     const water = waterBadge(p);
     const repot = repotBadge(p);
     const waterGesture = this.pressFor('water');
     const repotGesture = this.pressFor('repot');
     return html`
       <div class="top">
-        <a class="back" href="#/plants" aria-label="목록으로">${icon('chevron-left', 24)}</a>
+        <button class="back" @click=${this.goBack} aria-label="뒤로">${icon('chevron-left', 24)}</button>
         <h1>${p.name}</h1>
         <button class="edit" aria-label="수정" @click=${this.openEdit}>${icon('pencil')}</button>
       </div>
@@ -289,10 +296,11 @@ export class PlantDetailView extends LitElement {
         <div>
           <div class="k">종류</div>
           <div class="v">${p.species_name ?? '미지정'}</div>
+          ${p.species_name_en ? html`<div class="sci">${p.species_name_en}</div>` : nothing}
         </div>
         <div>
           <div class="k">화분</div>
-          <div class="v">${POT_LABEL[p.pot_size]}</div>
+          <div class="v">${POT_LABEL[p.pot_size]}${p.pot_type ? ` · ${p.pot_type}` : ''}</div>
         </div>
         <div>
           <div class="k">함께한 지</div>

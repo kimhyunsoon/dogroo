@@ -10,6 +10,7 @@ interface PlantBody {
   species_id?: number | null; // 식물 풀에서 선택
   started_at?: string | null;
   pot_size?: 'S' | 'M' | 'L';
+  pot_type?: string | null; // 화분 재질
   water_interval_days?: number | null; // null = 자동(추천값 사용)
   repot_interval_months?: number | null;
   memo?: string | null;
@@ -42,14 +43,15 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     if (!b.name?.trim()) return reply.code(400).send({ error: 'name_required' });
     const result = db
       .prepare(
-        `INSERT INTO plants (name, species_id, started_at, pot_size, water_interval_days, repot_interval_months, memo)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO plants (name, species_id, started_at, pot_size, pot_type, water_interval_days, repot_interval_months, memo)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         b.name.trim(),
         b.species_id ?? null,
         b.started_at ?? null,
         b.pot_size ?? 'M',
+        b.pot_type ?? null,
         b.water_interval_days ?? null,
         b.repot_interval_months ?? null,
         b.memo ?? null,
@@ -65,6 +67,7 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     if (b.species_id !== undefined) { sets.push('species_id = ?'); values.push(b.species_id); }
     if (b.started_at !== undefined) { sets.push('started_at = ?'); values.push(b.started_at); }
     if (b.pot_size !== undefined) { sets.push('pot_size = ?'); values.push(b.pot_size); }
+    if (b.pot_type !== undefined) { sets.push('pot_type = ?'); values.push(b.pot_type); }
     if (b.water_interval_days !== undefined) { sets.push('water_interval_days = ?'); values.push(b.water_interval_days); }
     if (b.repot_interval_months !== undefined) { sets.push('repot_interval_months = ?'); values.push(b.repot_interval_months); }
     if (b.memo !== undefined) { sets.push('memo = ?'); values.push(b.memo); }

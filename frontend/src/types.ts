@@ -2,24 +2,31 @@ export type PotSize = 'S' | 'M' | 'L';
 
 export interface Species {
   id: number;
-  name: string;
-  name_en: string | null;
+  name: string; // 별칭 (한국 유통명)
+  name_en: string | null; // 학명
+  group_name: string | null;
   water_summer_days: number | null;
   water_winter_days: number | null;
   repot_months: number | null;
   memo: string | null;
 }
 
+// 화분 재질
+export const POT_TYPES = ['슬릿', '토분', '도자기', '플라스틱', '수경'] as const;
+
 export interface PlantSummary {
   id: number;
-  name: string;
+  name: string; // 이름 (사용자 작성)
   species_id: number | null;
-  species_name: string | null;
+  species_name: string | null; // 별칭
+  species_name_en: string | null; // 학명
+  group_name: string | null;
   water_summer_days: number | null;
   water_winter_days: number | null;
   repot_months: number | null;
   started_at: string | null;
   pot_size: PotSize;
+  pot_type: string | null;
   water_interval_days: number | null;
   repot_interval_months: number | null;
   memo: string | null;

@@ -33,6 +33,23 @@ export function fmtDateY(date: string | null): string {
   return `${date.slice(2, 4)}.${Number(date.slice(5, 7))}.${Number(date.slice(8, 10))}`;
 }
 
+// 오늘 기준 상대 일수: '오늘' / '어제' / 'n일 전'
+export function fmtRelDays(date: string | null, base: string): string | null {
+  if (!date) return null;
+  const days = Math.round((Date.parse(`${base}T00:00:00`) - Date.parse(`${date.slice(0, 10)}T00:00:00`)) / 86400000);
+  if (days <= 0) return '오늘';
+  if (days === 1) return '어제';
+  return `${days}일 전`;
+}
+
+// 학명 축약: 'Monstera deliciosa' → 'M. deliciosa' (한 단어면 그대로)
+export function abbrevSci(name: string | null): string | null {
+  if (!name) return null;
+  const parts = name.split(' ');
+  if (parts.length < 2 || !/^[A-Z][a-z]+$/.test(parts[0] ?? '')) return name;
+  return `${parts[0]![0]}. ${parts.slice(1).join(' ')}`;
+}
+
 // 함께한 기간: n년 n개월 (1개월 미만이면 n일)
 export function fmtTogether(start: string, base: string): string {
   const s = new Date(`${start}T00:00:00`);

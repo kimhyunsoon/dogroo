@@ -5,7 +5,7 @@ import { api } from '../api.js';
 import { SheetBase } from './sheet-base.js';
 import type { Species } from '../types.js';
 
-// 식물 풀에서 종류 선택 (한글·영문 검색)
+// 식물 풀에서 종류 선택 (별칭·학명 검색)
 @customElement('species-picker-sheet')
 export class SpeciesPickerSheet extends SheetBase {
   static styles = [
@@ -15,14 +15,20 @@ export class SpeciesPickerSheet extends SheetBase {
     css`
       ul { list-style: none; margin: 0; padding: 0; }
       li button {
-        display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+        display: flex; justify-content: space-between; align-items: center; gap: 10px;
         width: 100%; text-align: left;
-        padding: 13px 4px;
+        padding: 11px 4px;
         background: none;
         border-bottom: 1px solid var(--border);
-        color: var(--text); font-size: 0.95rem;
+        color: var(--text);
       }
-      li .info { color: var(--text-sub); font-size: 0.78rem; flex-shrink: 0; }
+      .names { min-width: 0; }
+      .names .ko { font-size: 0.92rem; }
+      .names .sci {
+        font-size: 0.74rem; font-style: italic; color: var(--text-sub);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .info { color: var(--text-sub); font-size: 0.74rem; flex-shrink: 0; text-align: right; }
       .empty { text-align: center; color: var(--text-sub); padding: 30px 0; }
       .search-wrap { padding: 0 16px 10px; }
     `,
@@ -66,7 +72,7 @@ export class SpeciesPickerSheet extends SheetBase {
       <div class="search-wrap">
         <input
           type="search"
-          placeholder="이름이나 영문명으로 검색"
+          placeholder="별칭이나 학명으로 검색"
           @input=${(e: Event): void => void this.search((e.target as HTMLInputElement).value)}
         >
       </div>
@@ -80,10 +86,14 @@ export class SpeciesPickerSheet extends SheetBase {
           (s) => html`
             <li>
               <button @click=${(): void => this.select(s)}>
-                <span>${s.name}</span>
-                ${s.water_summer_days
-                  ? html`<span class="info">여름 ${s.water_summer_days}일 · 겨울 ${s.water_winter_days}일</span>`
-                  : nothing}
+                <span class="names">
+                  <div class="ko">${s.name}</div>
+                  ${s.name_en ? html`<div class="sci">${s.name_en}</div>` : nothing}
+                </span>
+                <span class="info">
+                  ${s.group_name ?? ''}
+                  ${s.water_summer_days ? html`<br>여름 ${s.water_summer_days}일 · 겨울 ${s.water_winter_days}일` : nothing}
+                </span>
               </button>
             </li>
           `,
@@ -92,4 +102,16 @@ export class SpeciesPickerSheet extends SheetBase {
       ${this.results.length === 0 ? html`<div class="empty">검색 결과가 없어요</div>` : nothing}
     `;
   }
+}
+
+// 전역 싱글턴 - 어느 화면·시트에서든 pickSpecies()로 사용
+// (body 직속이라 이중 모달이어도 dim이 항상 화면 전체를 덮는다)
+let instance: SpeciesPickerSheet | null = null;
+
+export function pickSpecies(): Promise<Species | null> {
+  if (!instance) {
+    instance = document.createElement('species-picker-sheet') as SpeciesPickerSheet;
+    document.body.appendChild(instance);
+  }
+  return instance.show();
 }

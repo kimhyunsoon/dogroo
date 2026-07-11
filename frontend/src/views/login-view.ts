@@ -23,11 +23,11 @@ export class LoginView extends LitElement {
   @state() private error = '';
   @state() private busy = false;
 
-  // 이미 로그인된 상태면 목록으로 (라우팅 가드)
+  // 이미 로그인된 상태면 오늘 탭으로 (라우팅 가드)
   connectedCallback(): void {
     super.connectedCallback();
     void fetch('/api/auth/me', { credentials: 'same-origin' }).then((res) => {
-      if (res.ok) location.hash = '#/plants';
+      if (res.ok) location.hash = '#/today';
     });
   }
 
@@ -42,7 +42,7 @@ export class LoginView extends LitElement {
         method: 'POST',
         body: JSON.stringify({ username: form.get('username'), password: form.get('password') }),
       });
-      location.hash = '#/plants';
+      location.hash = '#/today';
     } catch {
       this.error = '아이디 또는 비밀번호가 올바르지 않습니다';
     } finally {

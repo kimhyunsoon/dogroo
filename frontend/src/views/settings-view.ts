@@ -18,13 +18,12 @@ export class SettingsView extends LitElement {
     tokens,
     ui,
     css`
-      :host { display: block; min-height: 100dvh; background: var(--bg); padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+      :host { display: block; min-height: 100dvh; background: var(--bg); padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
       .top {
         display: flex; align-items: center; gap: 10px;
         padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
         position: sticky; top: 0; background: var(--bg); z-index: 5;
       }
-      .top .back { padding: 6px 8px 6px 0; color: var(--text); display: grid; place-items: center; }
       .top h1 { font-size: 1.15rem; margin: 0; }
       .block { margin: 12px 16px; }
       .row {
@@ -113,7 +112,6 @@ export class SettingsView extends LitElement {
     const theme = currentTheme();
     return html`
       <div class="top">
-        <a class="back" href="#/plants" aria-label="목록으로">${icon('chevron-left', 24)}</a>
         <h1>설정</h1>
       </div>
 

@@ -5,10 +5,9 @@ import { api, today } from '../api.js';
 import { toast, uiConfirm } from '../ui.js';
 import { icon } from '../icons.js';
 import { POT_LABEL, previewRecommend, seasonLabel } from '../fmt.js';
-import type { PlantDetail, PotSize, Species } from '../types.js';
+import { POT_TYPES, type PlantDetail, type PotSize, type Species } from '../types.js';
 import { SheetBase } from './sheet-base.js';
-import './species-picker-sheet.js';
-import type { SpeciesPickerSheet } from './species-picker-sheet.js';
+import { pickSpecies } from './species-picker-sheet.js';
 
 type IntervalMode = 'auto' | 'manual';
 
@@ -36,12 +35,13 @@ export class PlantFormSheet extends SheetBase {
       .seg-row .segmented { width: 132px; flex-shrink: 0; }
       .seg-row .auto-info { flex: 1; font-size: 0.88rem; color: var(--text-sub); text-align: right; }
       .seg-row input { flex: 1; }
-      .pots { display: flex; gap: 8px; }
-      .pots button {
-        flex: 1; padding: 10px; border-radius: 10px;
+      .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+      .chips button {
+        padding: 8px 13px; border-radius: 999px;
         background: var(--surface); border: 1px solid var(--border); color: var(--text-sub);
+        font-size: 0.85rem;
       }
-      .pots button.on { background: var(--green); border-color: var(--green); color: #fff; font-weight: 700; }
+      .chips button.on { background: var(--green); border-color: var(--green); color: #fff; font-weight: 700; }
       .hint { font-size: 0.8rem; color: var(--text-sub); margin-top: 6px; }
       .photos { display: flex; gap: 8px; flex-wrap: wrap; }
       .photos .ph { position: relative; }
@@ -67,6 +67,7 @@ export class PlantFormSheet extends SheetBase {
   @state() private plant: PlantDetail | null = null; // null = 신규 등록
   @state() private species: Species | null = null;
   @state() private potSize: PotSize = 'M';
+  @state() private potType: string | null = null;
   @state() private startedAt = today();
   @state() private waterMode: IntervalMode = 'auto';
   @state() private repotMode: IntervalMode = 'auto';
@@ -84,6 +85,7 @@ export class PlantFormSheet extends SheetBase {
     this.plant = null;
     this.species = null;
     this.potSize = 'M';
+    this.potType = null;
     this.startedAt = today();
     this.waterMode = 'auto';
     this.repotMode = 'auto';
@@ -93,6 +95,7 @@ export class PlantFormSheet extends SheetBase {
       const p = await api<PlantDetail>(`/api/plants/${plantId}`);
       this.plant = p;
       this.potSize = p.pot_size;
+      this.potType = p.pot_type;
       this.startedAt = p.started_at?.slice(0, 10) ?? today();
       this.waterMode = p.water_interval_days ? 'manual' : 'auto';
       this.repotMode = p.repot_interval_months ? 'manual' : 'auto';
@@ -100,7 +103,8 @@ export class PlantFormSheet extends SheetBase {
         ? {
             id: p.species_id,
             name: p.species_name ?? '',
-            name_en: null,
+            name_en: p.species_name_en,
+            group_name: p.group_name,
             water_summer_days: p.water_summer_days,
             water_winter_days: p.water_winter_days,
             repot_months: p.repot_months,
@@ -120,6 +124,7 @@ export class PlantFormSheet extends SheetBase {
       species: this.species?.id ?? null,
       started: this.startedAt,
       pot: this.potSize,
+      potType: this.potType,
       waterMode: this.waterMode,
       repotMode: this.repotMode,
       water: this.field('water'),
@@ -148,12 +153,11 @@ export class PlantFormSheet extends SheetBase {
     return (this.renderRoot.querySelector(`[name="${name}"]`) as HTMLInputElement | null)?.value ?? '';
   }
 
-  private async pickSpecies(): Promise<void> {
-    const picker = this.renderRoot.querySelector('species-picker-sheet') as SpeciesPickerSheet;
-    const picked = await picker.show();
+  private async openSpeciesPicker(): Promise<void> {
+    const picked = await pickSpecies();
     if (!picked) return;
     this.species = picked;
-    // 이름이 비어있으면 종명으로 자동완성
+    // 이름이 비어있으면 별칭으로 자동완성
     const nameInput = this.renderRoot.querySelector('[name="name"]') as HTMLInputElement | null;
     if (nameInput && !nameInput.value.trim()) nameInput.value = picked.name;
   }
@@ -173,6 +177,7 @@ export class PlantFormSheet extends SheetBase {
         species_id: this.species?.id ?? null,
         started_at: this.startedAt || null,
         pot_size: this.potSize,
+        pot_type: this.potType,
         water_interval_days: this.waterMode === 'manual' ? Number(this.field('water')) || null : null,
         repot_interval_months: this.repotMode === 'manual' ? Number(this.field('repot')) || null : null,
         memo: this.field('memo') || null,
@@ -315,7 +320,14 @@ export class PlantFormSheet extends SheetBase {
               `,
             ) ?? nothing}
             ${this.pendingPhoto
-              ? html`<div class="ph"><img src=${URL.createObjectURL(this.pendingPhoto)} alt=""></div>`
+              ? html`
+                  <div class="ph">
+                    <img src=${URL.createObjectURL(this.pendingPhoto)} alt="">
+                    <button type="button" class="rm" @click=${(): void => { this.pendingPhoto = null; }}>
+                      ${icon('x', 12)}
+                    </button>
+                  </div>
+                `
               : nothing}
             <button type="button" class="add-photo" @click=${(): void => {
               (this.renderRoot.querySelector('#photo-input') as HTMLInputElement).click();
@@ -327,9 +339,11 @@ export class PlantFormSheet extends SheetBase {
 
         <div>
           <label>종류</label>
-          <button type="button" class="select-btn" @click=${(): void => void this.pickSpecies()}>
+          <button type="button" class="select-btn" @click=${(): void => void this.openSpeciesPicker()}>
             ${this.species
-              ? html`<span>${this.species.name}</span>`
+              ? html`<span>${this.species.name}${this.species.name_en
+                  ? html` <span class="sub" style="font-style:italic">${this.species.name_en}</span>`
+                  : nothing}</span>`
               : html`<span class="placeholder">종류 선택</span>`}
             ${icon('chevron-right', 18)}
           </button>
@@ -360,7 +374,7 @@ export class PlantFormSheet extends SheetBase {
 
         <div>
           <label>화분 크기</label>
-          <div class="pots">
+          <div class="segmented">
             ${(['S', 'M', 'L'] as PotSize[]).map(
               (size) => html`
                 <button
@@ -368,6 +382,21 @@ export class PlantFormSheet extends SheetBase {
                   class=${this.potSize === size ? 'on' : ''}
                   @click=${(): void => { this.potSize = size; }}
                 >${POT_LABEL[size]}</button>
+              `,
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label>화분 재질</label>
+          <div class="chips">
+            ${POT_TYPES.map(
+              (type) => html`
+                <button
+                  type="button"
+                  class=${this.potType === type ? 'on' : ''}
+                  @click=${(): void => { this.potType = this.potType === type ? null : type; }}
+                >${type}</button>
               `,
             )}
           </div>
@@ -393,7 +422,6 @@ export class PlantFormSheet extends SheetBase {
             `
           : nothing}
       </form>
-      <species-picker-sheet></species-picker-sheet>
     `;
   }
 }

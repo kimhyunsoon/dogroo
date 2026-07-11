@@ -71,7 +71,7 @@ const TOAST_STYLE =
 let activeToast: HTMLElement | null = null;
 
 /**
- * 하단 토스트 표시. actionLabel을 주면 액션 버튼(예: 실행취소)이 붙는다.
+ * 하단 토스트 표시 (인아웃 애니메이션). actionLabel을 주면 액션 버튼(예: 취소)이 붙는다.
  * @param duration 자동 닫힘(ms), 기본 5초
  */
 export function toast(
@@ -81,23 +81,46 @@ export function toast(
   activeToast?.remove();
   const el = document.createElement('div');
   el.style.cssText = TOAST_STYLE;
+
+  let dismissed = false;
+  const dismiss = (): void => {
+    if (dismissed) return;
+    dismissed = true;
+    el.animate(
+      [
+        { opacity: 1, transform: 'translateX(-50%)' },
+        { opacity: 0, transform: 'translateX(-50%) translateY(12px)' },
+      ],
+      { duration: 180, easing: 'ease-in', fill: 'forwards' },
+    ).finished.then(() => el.remove());
+  };
+
   const span = document.createElement('span');
   span.textContent = message;
+  // 한 줄 유지, 넘치면 말줄임
+  span.style.cssText = 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;';
   el.appendChild(span);
   if (opts?.actionLabel) {
     const btn = document.createElement('button');
     btn.textContent = opts.actionLabel;
     btn.style.cssText =
-      'font:inherit;background:none;border:none;color:#8fd89f;font-weight:700;cursor:pointer;padding:2px;';
+      'font:inherit;background:none;border:none;color:#8fd89f;font-weight:700;cursor:pointer;padding:2px;white-space:nowrap;';
     btn.onclick = (): void => {
-      el.remove();
+      dismiss();
       opts.onAction?.();
     };
     el.appendChild(btn);
   }
   document.body.appendChild(el);
   activeToast = el;
-  setTimeout(() => el.remove(), opts?.duration ?? 5000);
+  el.animate(
+    [
+      { opacity: 0, transform: 'translateX(-50%) translateY(16px)' },
+      { opacity: 1, transform: 'translateX(-50%)' },
+    ],
+    { duration: 220, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1.1)' },
+  );
+  setTimeout(dismiss, opts?.duration ?? 5000);
 }
 
 // ── 확인 다이얼로그 (window.confirm 대체, 인아웃 애니메이션) ─────
