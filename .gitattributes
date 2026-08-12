@@ -1,0 +1,5 @@
+# 윈도우 체크아웃(core.autocrlf=true)에서도 셸에서 실행되는 파일은 LF를 유지해야 한다
+*.sh text eol=lf
+.env.example text eol=lf
+Caddyfile text eol=lf
+Dockerfile text eol=lf
