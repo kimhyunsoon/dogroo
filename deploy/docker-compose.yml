@@ -1,26 +1,12 @@
 name: dogroo
 
+# 리버스 프록시(80/443·TLS)는 공용 edge caddy 담당 (edge 리포 참고)
+# 네트워크 `edge`는 서버에서 수동 생성: docker network create edge
+# container_name은 edge Caddyfile이 참조하므로 변경 금지
 services:
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    env_file:
-      - /etc/dogroo/caddy.env          # DOGROO_DOMAIN
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    extra_hosts:
-      - "host.docker.internal:host-gateway"   # /deploy/hook → 호스트 웹훅
-    depends_on:
-      - backend
-      - frontend
-
   backend:
     build: ../backend
+    container_name: dogroo-backend
     restart: unless-stopped
     env_file:
       - /etc/dogroo/backend.env
@@ -30,13 +16,18 @@ services:
       - /root/workspace/dogroo-data:/data         # SQLite + photos (백업 = 이 디렉토리 복사)
     expose:
       - "4746"
+    networks:
+      - edge
 
   frontend:
     build: ../frontend
+    container_name: dogroo-frontend
     restart: unless-stopped
     expose:
       - "80"
+    networks:
+      - edge
 
-volumes:
-  caddy-data:
-  caddy-config:
+networks:
+  edge:
+    external: true

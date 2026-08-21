@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 사용법: deploy.sh <targets>   (쉼표 구분: backend,frontend,deploy)
-# webhook(hooks.json)이 호출. 직접 실행해도 동작한다.
+# 사용법: deploy.sh <targets>   (인자는 웹훅 페이로드 호환용 - 항상 전체 재적용)
+# edge 리포의 webhook(hooks.json)이 호출. 직접 실행해도 동작한다.
 set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-/root/workspace/dogroo}"
@@ -19,15 +19,9 @@ flock 9
   git reset --hard FETCH_HEAD
 
   cd deploy
-  IFS=',' read -ra targets <<< "${1:-}"
-
-  if [[ " ${targets[*]-} " == *" deploy "* ]]; then
-    # 배포 구성 자체가 바뀜 → 전체 재적용 (caddy 포함)
-    docker compose up -d --build
-  else
-    docker compose build "${targets[@]}"
-    docker compose up -d "${targets[@]}"
-  fi
+  # 항상 전체 재적용 - 변경 없는 이미지는 Docker 캐시로 수 초에 끝난다
+  # (--remove-orphans: compose에서 제거된 서비스의 잔류 컨테이너 정리)
+  docker compose up -d --build --remove-orphans
 
   # 사용하지 않는 이전 이미지 정리
   docker image prune -f
