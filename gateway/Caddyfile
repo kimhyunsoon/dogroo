@@ -1,0 +1,38 @@
+# 공용 게이트웨이 - 도메인은 /etc/gateway/caddy.env
+# 앱 컨테이너는 반드시 container_name(전역 유일)으로 참조한다.
+# 서비스명(backend 등)은 두 프로젝트가 겹쳐 네트워크 alias가 라운드로빈되기 때문.
+
+{$DOGROO_DOMAIN} {
+	encode gzip
+
+	handle /deploy/hook {
+		# 기존 웹훅 URL(/deploy/hook)을 유지하면서 앱별 훅 id로 분기
+		rewrite * /deploy/dogroo
+		reverse_proxy host.docker.internal:9099
+	}
+
+	handle /api/* {
+		reverse_proxy dogroo-backend:4746
+	}
+
+	handle {
+		reverse_proxy dogroo-frontend:80
+	}
+}
+
+{$DONOTI_DOMAIN} {
+	encode gzip
+
+	handle /deploy/hook {
+		rewrite * /deploy/donoti
+		reverse_proxy host.docker.internal:9099
+	}
+
+	handle /api/* {
+		reverse_proxy donoti-backend:4646
+	}
+
+	handle {
+		reverse_proxy donoti-frontend:80
+	}
+}

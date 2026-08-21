@@ -1,0 +1,36 @@
+[
+  {
+    "id": "dogroo",
+    "execute-command": "/root/workspace/dogroo/deploy/deploy.sh",
+    "command-working-directory": "/root/workspace/dogroo/deploy",
+    "include-command-output-in-response": false,
+    "response-message": "queued",
+    "pass-arguments-to-command": [
+      { "source": "payload", "name": "targets" }
+    ],
+    "trigger-rule": {
+      "match": {
+        "type": "value",
+        "value": "{{ getenv "DEPLOY_KEY_DOGROO" | js }}",
+        "parameter": { "source": "header", "name": "X-Deploy-Key" }
+      }
+    }
+  },
+  {
+    "id": "donoti",
+    "execute-command": "/root/workspace/donoti/deploy/deploy.sh",
+    "command-working-directory": "/root/workspace/donoti/deploy",
+    "include-command-output-in-response": false,
+    "response-message": "queued",
+    "pass-arguments-to-command": [
+      { "source": "payload", "name": "targets" }
+    ],
+    "trigger-rule": {
+      "match": {
+        "type": "value",
+        "value": "{{ getenv "DEPLOY_KEY_DONOTI" | js }}",
+        "parameter": { "source": "header", "name": "X-Deploy-Key" }
+      }
+    }
+  }
+]

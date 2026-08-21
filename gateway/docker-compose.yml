@@ -1,0 +1,32 @@
+name: gateway
+
+# 공용 리버스 프록시 게이트웨이 - 80/443을 단독 점유하고
+# dogroo/donoti 컨테이너로 도메인별 라우팅한다.
+# 네트워크 `gateway`는 서버에서 수동 생성: docker network create gateway
+# (compose 소유가 아니어서 down 시 삭제 시도로 다른 프로젝트가 깨지는 일이 없다)
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: gateway-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - /etc/gateway/caddy.env          # DOGROO_DOMAIN, DONOTI_DOMAIN
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # /deploy/hook → 호스트 웹훅(:9099)
+    networks:
+      - gateway
+
+volumes:
+  caddy-data:
+  caddy-config:
+
+networks:
+  gateway:
+    external: true

@@ -3,14 +3,14 @@
 # 사용법: bash server-setup.sh
 # 재실행해도 안전하다 (완료된 단계는 건너뜀).
 #
-# 게이트웨이(caddy 80/443)·배포 웹훅·Cloudflare DDNS는 edge 리포 소관이다.
-# 순서: 이 스크립트(1~5) → edge/server-setup.sh → 이 스크립트 재실행(6에서 기동)
+# 게이트웨이(caddy 80/443)·배포 웹훅·Cloudflare DDNS는 gateway/ 폴더 소관이다.
+# 순서: 이 스크립트(1~5) → gateway/server-setup.sh
 set -euo pipefail
 
 REPO_SSH="git@github.com:kimhyunsoon/dogroo.git"
 APP_DIR="/root/workspace/dogroo"
 DATA_DIR="/root/workspace/dogroo-data"
-# 앱 도메인 (edge의 Cloudflare DDNS가 관리)
+# 앱 도메인 (gateway의 Cloudflare DDNS가 관리)
 DOMAIN="dogroo.sudosoon.org"
 
 step() { printf '\n\033[1;32m==> %s\033[0m\n' "$1"; }
@@ -91,24 +91,24 @@ fi
 chmod 600 /etc/dogroo/*.env 2>/dev/null || true
 echo "    /etc/dogroo 준비 완료"
 
-# ── 6. 앱 기동 (게이트웨이는 edge 소관) ────────────────────────────
+# ── 6. 앱 기동 (게이트웨이는 gateway/ 소관) ────────────────────────
 step "6/6 앱 기동 (첫 빌드는 몇 분 걸립니다)"
-if ! docker network inspect edge >/dev/null 2>&1; then
-  docker network create edge
-  echo "    ⚠ edge 네트워크를 방금 만들었습니다. 외부 접속은 edge caddy가 떠야 가능합니다:"
-  echo "      bash /root/workspace/edge/server-setup.sh  (edge 리포 참고)"
+if ! docker network inspect gateway >/dev/null 2>&1; then
+  docker network create gateway
+  echo "    ⚠ gateway 네트워크를 방금 만들었습니다. 외부 접속은 gateway caddy가 떠야 가능합니다:"
+  echo "      bash /root/workspace/dogroo/gateway/server-setup.sh"
 fi
 cd "$APP_DIR/deploy"
 docker compose up -d --build --remove-orphans
 echo
 docker compose logs backend 2>/dev/null | tail -5
 
-printf '\n\033[1;32m✔ 서버 셋업 완료. 남은 일 (edge 리포 소관 포함):\033[0m\n'
+printf '\n\033[1;32m✔ 서버 셋업 완료. 남은 일:\033[0m\n'
 cat <<EOF
-  1. 게이트웨이·웹훅·DDNS: bash /root/workspace/edge/server-setup.sh
+  1. 게이트웨이·웹훅·DDNS: bash /root/workspace/dogroo/gateway/server-setup.sh
   2. iptime - 서버 내부 IP 고정 + 포트포워딩 80→80, 443→443 (TCP)
   3. GitHub Secrets의 DEPLOY_URL을 https://${DOMAIN}/deploy/hook 으로
-     (DEPLOY_KEY는 /etc/edge/deploy.env 의 DEPLOY_KEY_DOGROO 와 동일해야 함)
+     (DEPLOY_KEY는 /etc/gateway/deploy.env 의 DEPLOY_KEY_DOGROO 와 동일해야 함)
   4. 브라우저에서 https://${DOMAIN} 접속 → 로그인 확인
   5. 배포 테스트: 노트북에서 push → tail -f /var/log/dogroo-deploy.log
 EOF
