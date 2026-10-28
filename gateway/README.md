@@ -7,6 +7,7 @@
   [gateway-caddy] ─ HTTPS 자동 인증서 (도메인별 라우팅)
     ├ dogroo.sudosoon.org  /api/* → dogroo-backend:4746, /* → dogroo-frontend:80
     ├ donoti.sudosoon.org  /api/* → donoti-backend:4646, /* → donoti-frontend:80
+    ├ docook.sudosoon.org  /api/* → docook-backend:4346, /* → docook-frontend:80
     └ */deploy/hook → host:9099 (systemd webhook → 각 리포 deploy/deploy.sh)
 ```
 
@@ -14,6 +15,7 @@
 
 - 앱 compose는 caddy를 갖지 않는다. `container_name`을 `<앱>-backend`/`<앱>-frontend`로 고정하고 external 네트워크 `gateway`에 참여한다 (서비스명은 앱끼리 겹쳐 alias가 섞이므로 Caddyfile은 컨테이너명만 참조).
 - 네트워크 `gateway`는 서버에서 수동 생성(`docker network create gateway`) - compose 소유가 아니라 `down`에 휘말리지 않는다.
+- docook은 셋업이 `docook` 리포의 `docs/server-setup.sh`에 있다 (사이트 블록은 `{$DOCOOK_DOMAIN:docook.sudosoon.org}` 기본값 문법이라 caddy.env 추가 전에도 안전).
 - 앱 추가 시: Caddyfile에 사이트 블록, hooks.json에 훅, caddy.env에 도메인, cf-ddns.sh의 `RECORD_NAMES`에 레코드 추가 후 push (+ `systemctl restart webhook`, caddy.env 변경 시 `docker compose up -d --force-recreate caddy`).
 
 ## 배포 반영
@@ -30,8 +32,8 @@ systemctl daemon-reload && systemctl restart webhook
 | 경로 | 내용 |
 |---|---|
 | `/root/workspace/dogroo/gateway` | 이 폴더 |
-| `/etc/gateway/caddy.env` | `DOGROO_DOMAIN`, `DONOTI_DOMAIN` |
-| `/etc/gateway/deploy.env` | `DEPLOY_KEY_DOGROO`, `DEPLOY_KEY_DONOTI` (webhook systemd가 로드) |
+| `/etc/gateway/caddy.env` | `DOGROO_DOMAIN`, `DONOTI_DOMAIN`, `DOCOOK_DOMAIN` |
+| `/etc/gateway/deploy.env` | `DEPLOY_KEY_DOGROO`, `DEPLOY_KEY_DONOTI`, `DEPLOY_KEY_DOCOOK` (webhook systemd가 로드) |
 | `/etc/gateway/cf.env` | `CF_TOKEN` (Edit zone DNS 권한) |
 | `/etc/cron.d/cf-ddns` | 10분마다 `cf-ddns.sh` (유동 IP 대응) |
 

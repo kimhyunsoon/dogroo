@@ -32,5 +32,22 @@
         "parameter": { "source": "header", "name": "X-Deploy-Key" }
       }
     }
+  },
+  {
+    "id": "docook",
+    "execute-command": "/root/workspace/docook/deploy/deploy.sh",
+    "command-working-directory": "/root/workspace/docook/deploy",
+    "include-command-output-in-response": false,
+    "response-message": "queued",
+    "pass-arguments-to-command": [
+      { "source": "payload", "name": "targets" }
+    ],
+    "trigger-rule": {
+      "match": {
+        "type": "value",
+        "value": "{{ getenv "DEPLOY_KEY_DOCOOK" | js }}",
+        "parameter": { "source": "header", "name": "X-Deploy-Key" }
+      }
+    }
   }
 ]

@@ -5,7 +5,7 @@ set -euo pipefail
 
 source /etc/gateway/cf.env
 ZONE_NAME="sudosoon.org"
-RECORD_NAMES=(dogroo.sudosoon.org donoti.sudosoon.org)
+RECORD_NAMES=(dogroo.sudosoon.org donoti.sudosoon.org docook.sudosoon.org)
 API="https://api.cloudflare.com/client/v4"
 
 cf() {

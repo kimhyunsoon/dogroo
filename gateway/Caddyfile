@@ -36,3 +36,21 @@
 		reverse_proxy donoti-frontend:80
 	}
 }
+
+# 기본값 문법: caddy.env에 DOCOOK_DOMAIN이 아직 없어도(docook 셋업 전) 다른 사이트가 깨지지 않게
+{$DOCOOK_DOMAIN:docook.sudosoon.org} {
+	encode gzip
+
+	handle /deploy/hook {
+		rewrite * /deploy/docook
+		reverse_proxy host.docker.internal:9099
+	}
+
+	handle /api/* {
+		reverse_proxy docook-backend:4346
+	}
+
+	handle {
+		reverse_proxy docook-frontend:80
+	}
+}
