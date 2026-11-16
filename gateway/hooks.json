@@ -49,5 +49,22 @@
         "parameter": { "source": "header", "name": "X-Deploy-Key" }
       }
     }
+  },
+  {
+    "id": "doquiz",
+    "execute-command": "/root/workspace/doquiz/deploy/deploy.sh",
+    "command-working-directory": "/root/workspace/doquiz/deploy",
+    "include-command-output-in-response": false,
+    "response-message": "queued",
+    "pass-arguments-to-command": [
+      { "source": "payload", "name": "targets" }
+    ],
+    "trigger-rule": {
+      "match": {
+        "type": "value",
+        "value": "{{ getenv "DEPLOY_KEY_DOQUIZ" | js }}",
+        "parameter": { "source": "header", "name": "X-Deploy-Key" }
+      }
+    }
   }
 ]
