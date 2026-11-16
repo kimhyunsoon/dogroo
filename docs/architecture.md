@@ -4,7 +4,7 @@
 
 ```
 groo/  (GitHub 개인 리포, main 단일 브랜치)
-├── assets/                # 로고 원본 (파비콘·아이콘 재생성 소스)
+├── assets/                # 마크·아이콘 SVG 원본 + compose-icons.py (do 시리즈 공용 아이콘 합성기, docs/icon-guide.md)
 ├── docs/data/             # groo 백업 원본 (git 제외, 로컬 보존)
 ├── backend/               # Rust (axum + rusqlite) API 서버 (독립 cargo 크레이트, rust-toolchain.toml 로 버전 고정)
 │   ├── src/
