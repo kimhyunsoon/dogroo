@@ -1,4 +1,6 @@
-node_modules
-dist
+target
 .env
 *.log
+data
+node_modules
+dist
